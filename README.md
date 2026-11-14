@@ -80,3 +80,8 @@ One Fabric container embeds seven exact-version implementations. Fabric Loader r
 The compatibility workflow compiles and runs the settings/mixin smoke checks for each implementation, packages the universal JAR, then checks the exact artifact with Fabric Loader's real dependency resolver for all seven targets. Version-specific JARs remain available for troubleshooting. Install either the universal JAR or one matching version-specific client, never both.
 
 All support-page screens, commands, post-clip links and embedded web-engine dependencies have been removed. Clips remain local and the saved-clip screen only offers Close and Show clip.
+
+## Latest release
+
+[Download ShoreMod 1.2.3](https://github.com/ShoreSMP/ShoreMod-Client/releases/download/v1.2.3/ShoreMod-1.2.3.jar)
+
