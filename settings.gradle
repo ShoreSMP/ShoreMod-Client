@@ -1,0 +1,8 @@
+pluginManagement {
+    repositories { maven { url = 'https://maven.fabricmc.net/' }; gradlePluginPortal(); mavenCentral() }
+}
+rootProject.name = 'ShoreMod'
+include 'common'
+// The public client snapshot intentionally omits the private companion plugin.
+if (file('plugin/build.gradle').isFile()) include 'plugin'
+if (!providers.gradleProperty('serverOnly').isPresent()) include 'fabric'

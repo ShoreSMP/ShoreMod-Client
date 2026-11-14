@@ -1,0 +1,42 @@
+plugins { id 'fabric-loom' version '1.14.10' }
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings "net.fabricmc:yarn:${yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+    implementation project(':common')
+    include project(':common')
+}
+// Developer self tests: ./gradlew :fabric:runSelfTestUi  and  :fabric:runSelfTestWorld
+loom {
+    runs {
+        selfTestUi {
+            client()
+            configName = 'ShoreMod self test (UI)'
+            vmArg '-Dshoremod.selftest=ui'
+            programArgs '--width', '1280', '--height', '720'
+        }
+        selfTestWorld {
+            client()
+            configName = 'ShoreMod self test (world)'
+            vmArg '-Dshoremod.selftest=world'
+            programArgs '--width', '1280', '--height', '720'
+        }
+    }
+}
+base { archivesName = "ShoreMod-Fabric-${minecraft_version}" }
+processResources {
+    filesMatching('fabric.mod.json') { expand version: project.version, minecraft_version: minecraft_version }
+    doFirst {
+        if (!file('src/main/resources/assets/shoremod/textures/font/badge.png').exists())
+            throw new GradleException('The original ShoreSMP badge texture is required.')
+    }
+}
+
+if (providers.gradleProperty('creativeRegression').isPresent()) {
+    loom { runs { client { vmArg '-Dshoremod.selftest=creative'; programArgs '--username', 'ShoreModTest', '--width', '1280', '--height', '720' } } }
+}
+
+if (providers.gradleProperty('hudRegression').isPresent()) {
+    loom { runs { client { vmArg '-Dshoremod.selftest=hud'; programArgs '--username', 'ShoreModTest', '--width', '1280', '--height', '720' } } }
+}

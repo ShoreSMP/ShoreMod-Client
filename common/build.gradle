@@ -1,0 +1,9 @@
+tasks.register('coreTest', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'net.shoresmp.core.CoreTest'
+    jvmArgs '-ea'
+}
+check.dependsOn coreTest
+// CoreTest is a standalone assertion runner, invoked above, rather than a JUnit suite.
+tasks.named('test') { failOnNoDiscoveredTests = false }
