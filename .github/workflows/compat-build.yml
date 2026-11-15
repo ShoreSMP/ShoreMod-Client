@@ -1,7 +1,7 @@
 name: Build and release ShoreMod
 on:
   push:
-    branches: ['main']
+    branches: ['main', 'fix/compact-shulker-tooltip']
     paths: ['fabric/**', 'common/**', 'plugin/**', 'scripts/**', 'build.gradle', 'gradle.properties', 'settings.gradle', 'gradle/**', '.github/workflows/compat-build.yml']
   workflow_dispatch:
 concurrency:
