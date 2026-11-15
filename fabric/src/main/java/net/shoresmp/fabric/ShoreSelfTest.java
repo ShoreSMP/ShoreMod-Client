@@ -214,6 +214,7 @@ final class ShoreSelfTest {
         step(2,c->{ShoreClient.config.menuScale=100;c.setScreen(new ShoreScreen(null));((ShoreScreen)c.currentScreen).showPage("GENERAL");});
         step(10,ShoreSelfTest::sizeEditing);
         planVisuals();
+        planShulkerLore();
         step(2,c->{log("HUD scale regression done");finish(c);});
     }
     private static void planVisuals(){
@@ -253,6 +254,38 @@ final class ShoreSelfTest {
         for(String module:new String[]{"performance","blockoverlay","betterf3","guitweaks","hitboxes","totemtweaks","waypoints","chat"}){
             step(2,c->((ShoreScreen)c.currentScreen).showModule(module));step(6,c->shot(c,"settings_"+module));
         }
+    }
+    private static volatile boolean loreMeasured;
+    private static void measureShulkerLore(MinecraftClient c,String mode){
+        loreMeasured=false;
+        ScreenshotRecorder.takeScreenshot(c.getFramebuffer(),image->{
+            try(image){
+                int green=0,purple=0;
+                for(int y=0;y<image.getHeight();y++)for(int x=0;x<image.getWidth();x++){
+                    int rgb=image.getColorArgb(x,y)&0xFFFFFF;
+                    if(rgb==0x12AB34)green++;if(rgb==0xAB12CD)purple++;
+                }
+                log(verdict(green>=10&&purple>=10)+" shulker lore colors remain visible "+mode+" ("+green+", "+purple+" pixels)");
+            }finally{loreMeasured=true;}
+        });
+    }
+    private static void planShulkerLore(){
+        step(2,c->{
+            c.setScreen(null);var cfg=ShoreClient.config;cfg.shulkerPreview=true;cfg.shulkerMode=1;cfg.shulkerTitle=false;cfg.shulkerScale=150;
+            var server=c.getServer();var id=c.player.getUuid();server.execute(()->{
+                var sp=server.getPlayerManager().getPlayer(id);var box=new ItemStack(Items.PURPLE_SHULKER_BOX);
+                box.set(net.minecraft.component.DataComponentTypes.LORE,new net.minecraft.component.type.LoreComponent(java.util.List.of(
+                    net.minecraft.text.Text.literal("SHORE LORE MUST STAY").withColor(0x12AB34),net.minecraft.text.Text.literal("Second styled lore line").withColor(0xAB12CD))));
+                box.set(net.minecraft.component.DataComponentTypes.CONTAINER,net.minecraft.component.type.ContainerComponent.fromStacks(java.util.List.of(new ItemStack(Items.DIAMOND,64))));
+                sp.getInventory().setStack(9,box);
+            });
+        });
+        step(12,c->c.setScreen(new net.minecraft.client.gui.screen.ingame.InventoryScreen(c.player)));
+        step(4,c->{var screen=(HandledScreen<?>)c.currentScreen;sx=field(screen,"x");sy=field(screen,"y");moveTo(c,9);});
+        step(10,c->{shot(c,"shulker_lore_title_off");measureShulkerLore(c,"with title off at 150%");});await(c->loreMeasured,0);
+        step(2,c->{ShoreClient.config.shulkerTitle=true;ShoreClient.config.shulkerScale=50;});
+        step(10,c->{shot(c,"shulker_lore_small");measureShulkerLore(c,"at 50%");});await(c->loreMeasured,0);
+        step(2,c->{var stack=slot(c,9).getStack();log(verdict(stack.get(net.minecraft.component.DataComponentTypes.LORE).lines().size()==2&&stack.get(net.minecraft.component.DataComponentTypes.CONTAINER).copyFirstStack().getCount()==64)+" shulker preview leaves lore and contents unchanged");});
     }
     private static void enterWorld(){
         // Wait for resource loading to finish before driving the settings UI.
@@ -557,4 +590,5 @@ final class ShoreSelfTest {
         catch(ReflectiveOperationException e){throw new IllegalStateException(e);}
     }
 }
+
 

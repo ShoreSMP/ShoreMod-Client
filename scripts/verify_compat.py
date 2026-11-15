@@ -19,10 +19,11 @@ def verify(target):
  with zipfile.ZipFile(io.BytesIO(data)) as jar:
   meta=json.loads(jar.read('fabric.mod.json'))
   assert meta['depends']['minecraft']==target and meta['custom']['shoremod:build-target']==target
-  assert meta['depends']['java']==f'>={java}' and meta['version']=='1.3.0'
+  assert meta['depends']['java']==f'>={java}' and meta['version']=='1.3.1'
   classes=[n for n in jar.namelist() if n.startswith('net/shoresmp/fabric/') and n.endswith('.class')]
   assert len(classes)>25 and all(struct.unpack('>H',jar.read(n)[6:8])[0]<=java+44 for n in classes)
   assert meta['icon'] in jar.namelist() and 'net/shoresmp/fabric/mixin/BrightnessMixin.class' in jar.namelist()
  result={'minecraft':target,'file':path.name,'sha256':hashlib.sha256(data).hexdigest(),'java':java,'checks':'exact metadata, bytecode, logo, removed components absent'}
  (root/'fabric/build/compat-verification.json').write_text(json.dumps(result,indent=2));print(json.dumps(result,indent=2))
 if __name__=='__main__':verify(sys.argv[1])
+

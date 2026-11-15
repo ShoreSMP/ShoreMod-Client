@@ -3,7 +3,7 @@ import io,json,hashlib,sys,zipfile
 from pathlib import Path
 from verify_compat import verify_clean
 TARGETS={'1.21.5','1.21.8','1.21.10','1.21.11','26.1','26.2','26.3'}
-VERSION='1.3.0'
+VERSION='1.3.1'
 def package(folder,output):
  variants={};icon=None
  for path in folder.glob('*.jar'):
@@ -29,3 +29,4 @@ def package(folder,output):
  output.with_suffix('.jar.sha256').write_text(hashlib.sha256(output.read_bytes()).hexdigest()+'  '+output.name+'\n')
  print('PASS: universal container contains seven exact-version clients')
 if __name__=='__main__':package(Path(sys.argv[1]),Path(sys.argv[2]))
+

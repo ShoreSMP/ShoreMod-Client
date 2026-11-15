@@ -222,7 +222,7 @@ public abstract class HandledScreenMixin extends Screen {
     }
 
     // ------------------------------------------------------------------ shulker preview
-    /** Hovering a shulker box (holding Shift, or always) shows its 27 slots instead of the text tooltip. */
+    /** Hovering a shulker box (holding Shift, or always) shows its normal tooltip text above the 27-slot preview. */
     @Inject(method="drawMouseoverTooltip",at=@At("HEAD"),cancellable=true)
     private void shore$shulkerTooltip(DrawContext ctx,int mx,int my,CallbackInfo ci){
         Config c=shore$cfg();
@@ -236,12 +236,23 @@ public abstract class HandledScreenMixin extends Screen {
         ci.cancel();
         var items=net.minecraft.util.collection.DefaultedList.ofSize(27,ItemStack.EMPTY);
         stack.getOrDefault(DataComponentTypes.CONTAINER,ContainerComponent.DEFAULT).copyTo(items);
-        // Size, background, border and title are all configurable on the Shulker Preview page.
+        // Keep the complete vanilla/mod-provided tooltip, including styled lore.
+        // The title toggle hides only the name; it must never hide lore or attributes.
         float sc=c.shulkerScale/100f;
-        int titleH=c.shulkerTitle?13:0,pw=9*18+10,ph=3*18+9+titleH;
+        var normal=Screen.getTooltipFromItem(MinecraftClient.getInstance(),stack);
+        var lines=new ArrayList<net.minecraft.text.OrderedText>();
+        int maxTextWidth=Math.max(40,(int)((width-12)/sc)-12);
+        for(int i=c.shulkerTitle?0:Math.min(1,normal.size());i<normal.size();i++)
+            lines.addAll(textRenderer.wrapLines(normal.get(i),maxTextWidth));
+        int lineH=textRenderer.fontHeight+1,textH=lines.isEmpty()?0:lines.size()*lineH+4;
+        int pw=9*18+10;
+        for(var line:lines)pw=Math.max(pw,textRenderer.getWidth(line)+12);
+        int ph=3*18+10+textH;
+        sc=Math.min(sc,Math.min((width-8)/(float)pw,(height-8)/(float)ph));
         float sw=pw*sc,sh=ph*sc;
         float x=mx+12,y=my-12;
         if(x+sw>width-4)x=mx-12-sw;
+        x=Math.clamp(x,4,Math.max(4,width-sw-4));
         y=Math.clamp(y,4,Math.max(4,height-sh-4));
         var dye=box.getColor();
         int border=switch(c.shulkerBorderMode){
@@ -253,9 +264,9 @@ public abstract class HandledScreenMixin extends Screen {
         var m=ctx.getMatrices();m.pushMatrix();m.translate(x,y);m.scale(sc,sc);
         if(border!=0){ctx.fill(1,0,pw-1,ph,border);ctx.fill(0,1,pw,ph-1,border);}
         ctx.fill(2,1,pw-2,ph-1,bg);ctx.fill(1,2,pw-1,ph-2,bg);
-        if(c.shulkerTitle)ctx.drawTextWithShadow(textRenderer,stack.getName(),6,6,0xFFFFFFFF);
+        for(int i=0;i<lines.size();i++)ctx.drawTextWithShadow(textRenderer,lines.get(i),6,5+i*lineH,0xFFFFFFFF);
         for(int i=0;i<27;i++){
-            int sx=5+i%9*18,sy=5+titleH+i/9*18;
+            int sx=(pw-9*18)/2+i%9*18,sy=5+textH+i/9*18;
             if(c.shulkerEmptySlots)ctx.fill(sx,sy,sx+17,sy+17,0x22FFFFFF);
             ItemStack item=items.get(i);
             if(!item.isEmpty()){ctx.drawItem(item,sx,sy);ctx.drawStackOverlay(textRenderer,item,sx,sy);}
@@ -263,3 +274,4 @@ public abstract class HandledScreenMixin extends Screen {
         m.popMatrix();
     }
 }
+

@@ -255,6 +255,7 @@ jobs:
             fabric/run/screenshots/selftest_better_f3.png
             fabric/run/screenshots/selftest_transparent_inventory.png
             fabric/run/screenshots/selftest_settings_*.png
+            fabric/run/screenshots/selftest_shulker_lore_*.png
   bundle:
     permissions:
       contents: write
@@ -282,7 +283,7 @@ jobs:
               with zipfile.ZipFile(path) as jar:
                   if 'fabric.mod.json' in jar.namelist():
                       meta=json.loads(jar.read('fabric.mod.json'))
-                      assert meta['version']=='1.3.0',meta
+                      assert meta['version']=='1.3.1',meta
                       versions.add(meta['depends']['minecraft'])
                   else:
                       assert 'plugin.yml' in jar.namelist()
@@ -292,17 +293,17 @@ jobs:
           print('PASS: seven client versions; companion plugin included only in private checkout')
           PY
       - name: Package one universal client
-        run: python3 scripts/package_universal.py jars universal/ShoreMod-1.3.0.jar
+        run: python3 scripts/package_universal.py jars universal/ShoreMod-1.3.1.jar
       - name: Verify real Fabric version selection
-        run: python3 scripts/check_universal.py universal/ShoreMod-1.3.0.jar
+        run: python3 scripts/check_universal.py universal/ShoreMod-1.3.1.jar
       - uses: actions/upload-artifact@v4
         with:
-          name: ShoreMod-1.3.0
+          name: ShoreMod-1.3.1
           if-no-files-found: error
           path: universal/*
       - uses: actions/upload-artifact@v4
         with:
-          name: ShoreMod-1.3.0-All-Jars
+          name: ShoreMod-1.3.1-All-Jars
           path: jars/*.jar
           if-no-files-found: error
 
@@ -312,21 +313,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          if gh release view v1.3.0 >/dev/null 2>&1; then
-            echo "Release v1.3.0 already exists; preserving its published assets."
+          if gh release view v1.3.1 >/dev/null 2>&1; then
+            echo "Release v1.3.1 already exists; preserving its published assets."
             exit 0
           fi
           cat > release-notes.txt <<'NOTES'
-          ShoreMod 1.3.0
+          Fixes shulker previews hiding item lore. The preview now shows the normal formatted tooltip text above the contents grid, wraps long lines, and fits the combined panel inside the screen. Turning off the preview title hides only the item name; lore remains visible.
 
-          Adds configurable block outlines, Better F3, inventory transparency and GUI sizing, colored hitboxes, lightweight totem size/opacity controls, local waypoints, and chat heads.
+          One universal JAR supports Minecraft 1.21.5, 1.21.8, 1.21.10, 1.21.11, 26.1, 26.2, and 26.3. Replace your old ShoreMod JAR. Fabric Loader 0.19.2+ and Java 21 for listed 1.21.x versions; Loader 0.20.1+ and Java 25 for 26.x. Install the matching Fabric API.
 
-          Performance mode skips framebuffer recording entirely. Recording is disabled during the first upgrade to this version; enabling the recorder explicitly exits performance mode. HUD item models are opt-in, and repeated badge text is cached.
-
-          One JAR supports Minecraft 1.21.5, 1.21.8, 1.21.10, 1.21.11, 26.1, 26.2, and 26.3. Use Fabric Loader 0.19.2+ and Java 21 for the listed 1.21.x versions; use Loader 0.20.1+ and Java 25 for 26.x. Install the matching Fabric API. Replace the old ShoreMod JAR.
-
-          All new modules are optional. Totem Tweaks uses a lightweight first-person sprite and pop animation. Chat heads identify recognized player-name prefixes and use Minecraft-managed skins.
-
-          Builds, startup/mixin checks for all seven versions, core checks, creative inventory regression, and in-world visual/settings checks run before publishing. Exact FPS changes depend on the user's hardware and other mods; this release does not claim a measured 200-FPS improvement.
+          Validated with all seven version builds/startup checks and real framebuffer tests that check two styled lore lines with the preview title disabled and at 50% scale.
           NOTES
-          gh release create v1.3.0 universal/ShoreMod-1.3.0.jar universal/ShoreMod-1.3.0.jar.sha256 --target "$GITHUB_SHA" --title "ShoreMod 1.3.0" --notes-file release-notes.txt
+          gh release create v1.3.1 universal/ShoreMod-1.3.1.jar universal/ShoreMod-1.3.1.jar.sha256 --target "$GITHUB_SHA" --title "ShoreMod 1.3.1" --notes-file release-notes.txt
