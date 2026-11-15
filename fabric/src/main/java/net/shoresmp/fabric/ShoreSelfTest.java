@@ -234,6 +234,15 @@ final class ShoreSelfTest {
                 w.setBlockState(net.minecraft.util.math.BlockPos.ofFloored(pos),Blocks.STONE.getDefaultState());
                 var side=pos.add(look.z*1.5,-1,-look.x*1.5);w.spawnEntity(new net.minecraft.entity.decoration.ArmorStandEntity(w,side.x,side.y,side.z));
             });
+            boolean oldBadges=cfg.badges,oldTab=cfg.badgeTab;
+            cfg.badges=true;cfg.badgeTab=true;
+            var ownEntry=c.getNetworkHandler().getPlayerListEntry(c.player.getUuid());
+            log(verdict(!ShoreClient.roster.users().containsKey(c.player.getUuid())&&ShoreBadge.hasBadge(c.player.getUuid()))+" local badge works without server presence");
+            log(verdict(!ShoreBadge.hasBadge(java.util.UUID.randomUUID()))+" unknown remote players do not gain badges");
+            log(verdict(ownEntry!=null&&c.inGameHud.getPlayerListHud().getPlayerName(ownEntry).getString().contains("\uE000"))+" own tab logo appears without companion plugin");
+            cfg.badges=false;
+            log(verdict(!c.inGameHud.getPlayerListHud().getPlayerName(ownEntry).getString().contains("\uE000"))+" badge toggle still hides own logo");
+            cfg.badges=oldBadges;cfg.badgeTab=oldTab;
             String playerName=c.player.getName().getString();
             for(String header:java.util.List.of("[Royal] "+playerName+" \u276f hello","[12:30] [Captain] "+playerName+" \u2192 hello","<"+playerName+"> hello")){
                 var decorated=ShoreChatHeads.decorate(net.minecraft.text.Text.literal(header));

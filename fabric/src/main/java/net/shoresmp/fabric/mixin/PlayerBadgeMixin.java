@@ -15,7 +15,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class PlayerBadgeMixin {
     @Inject(method="updateRenderState(Lnet/minecraft/entity/PlayerLikeEntity;Lnet/minecraft/client/render/entity/state/PlayerEntityRenderState;F)V",at=@At("TAIL"))
     private void shore$badge(PlayerLikeEntity player,PlayerEntityRenderState state,float delta,CallbackInfo ci){
-        if(!ShoreClient.config.badges || !ShoreClient.config.badgeNametags||state.displayName==null||!ShoreClient.roster.users().containsKey(player.getUuid()))return;
-        state.displayName=ShoreBadge.prepend(state.displayName);
+        if(ShoreClient.config==null||!ShoreClient.config.badges||!ShoreClient.config.badgeNametags||!ShoreBadge.hasBadge(player.getUuid()))return;
+        if(state.displayName==null&&ShoreBadge.isLocal(player.getUuid()))state.displayName=player.getDisplayName();
+        if(state.displayName!=null)state.displayName=ShoreBadge.prepend(state.displayName);
     }
 }
