@@ -21,7 +21,9 @@ def package(folder,output):
     name=dependency['file']
     if Path(name).name.startswith(('jcodec-','jcodec-javase-')):
      payload=jar.read(name)
-     assert name not in shared or shared[name]==payload,'Mismatched codec dependency'
+     if name in shared:
+      with zipfile.ZipFile(io.BytesIO(shared[name])) as first,zipfile.ZipFile(io.BytesIO(payload)) as other:
+       assert {n:first.read(n) for n in first.namelist()}=={n:other.read(n) for n in other.namelist()},'Mismatched codec dependency'
      shared[name]=payload;removed.add(name)
    meta['jars']=[d for d in meta.get('jars',[]) if d['file'] not in removed]
    buf=io.BytesIO()
@@ -35,7 +37,7 @@ def package(folder,output):
  meta['jars'] += [{'file':name} for name in sorted(shared)]
  output.parent.mkdir(parents=True,exist_ok=True)
  with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as jar:
-  jar.writestr('LICENSE',(Path(__file__).resolve().parents[1]/'LICENSE').read_bytes());jar.writestr('fabric.mod.json',json.dumps(meta,indent=2));jar.writestr('icon.png',icon)
+  jar.writestr('LICENSE',(Path(__file__).resolve().parents[1]/'LICENSE').read_bytes());jar.writestr('LICENSE-JCODEC.txt',(Path(__file__).resolve().parents[1]/'LICENSE-JCODEC.txt').read_bytes());jar.writestr('fabric.mod.json',json.dumps(meta,indent=2));jar.writestr('icon.png',icon)
   for name,data in sorted(shared.items()):jar.writestr(name,data)
   for target,data in sorted(variants.items()):jar.writestr('META-INF/jars/shoremod-'+target+'.jar',data)
  verify_clean(output.read_bytes())

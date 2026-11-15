@@ -44,6 +44,7 @@ public final class UniversalResolutionCheck {
    var resolved=ModResolver.resolve(all,EnvType.CLIENT,Map.of());var selected=resolved.stream().filter(m->m.getId().equals("shoremod")).toList();
    if(selected.size()!=1||!selected.get(0).getVersion().getFriendlyString().equals(root.getVersion().getFriendlyString()+"-mc."+target))throw new AssertionError("Wrong implementation for "+target+": "+selected);
    if(resolved.stream().anyMatch(m->Set.of("rinku","mcef").contains(m.getId())))throw new AssertionError("Removed dependency selected");
+   if(resolved.stream().filter(m->m.getId().contains("jcodec")).count()!=2)throw new AssertionError("Both MP4 codec dependencies must resolve for "+target);
    var gameDep=root.getDependencies().stream().filter(d->d.getModId().equals("minecraft")).findFirst().orElseThrow();
    if(gameDep.matches(Version.parse("1.21.9")))throw new AssertionError("Untested version accepted");
    System.out.println("PASS: real Fabric resolver selects exactly "+target);

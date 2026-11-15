@@ -1,6 +1,6 @@
 # Third-party dependencies
 
-- JCodec and JCodec JavaSE 0.2.5: https://github.com/jcodec/jcodec — FreeBSD / BSD 2-Clause license (included in the nested dependency JARs). Used for offline H.264 MP4 clip export; no native executables or downloads required.
+- JCodec and JCodec JavaSE 0.2.5: https://github.com/jcodec/jcodec — FreeBSD license, reproduced in LICENSE-JCODEC.txt and included in the release JAR. Used for offline H.264 MP4 clip export; no native executables or downloads required.
 
 
 - Fabric Loader / Fabric API / Fabric Loom: https://fabricmc.net/

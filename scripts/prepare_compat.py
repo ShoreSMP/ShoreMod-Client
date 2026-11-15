@@ -47,7 +47,7 @@ deps+="    implementation 'org.jcodec:jcodec:0.2.5'\n    include 'org.jcodec:jco
 deps+="    implementation project(':common')\n    include project(':common')\n}\n"
 deps+=f"base {{ archivesName = 'ShoreMod-Fabric-{target}' }}\n"
 if modern:deps+="java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }\ntasks.withType(JavaCompile).configureEach { options.release = 25 }\n"
-deps+='\ntasks.withType(Jar).configureEach { from(rootProject.file("LICENSE")) }\n'
+deps+='\ntasks.withType(Jar).configureEach { from(rootProject.file("LICENSE")); from(rootProject.file("LICENSE-JCODEC.txt")) }\ntasks.named("test") { failOnNoDiscoveredTests = false }\n'
 (root/'fabric/build.gradle').write_text(deps)
 meta=json.loads((res/'fabric.mod.json').read_text(encoding='utf-8-sig'));meta['version']='1.3.2';meta['depends']['minecraft']=target
 meta['depends']['java']='>=25' if modern else '>=21';meta['depends']['fabricloader']='>='+loader;meta['depends']['fabric-api']='>='+api.split('+')[0];meta['depends'].pop('rinku',None)

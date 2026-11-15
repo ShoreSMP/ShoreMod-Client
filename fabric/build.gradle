@@ -45,7 +45,7 @@ if (providers.gradleProperty('hudRegression').isPresent()) {
     loom { runs { client { vmArg '-Dshoremod.selftest=hud'; programArgs '--username', 'ShoreModTest', '--width', '1280', '--height', '720' } } }
 }
 
-tasks.withType(Jar).configureEach { from(rootProject.file("LICENSE")) }
+tasks.withType(Jar).configureEach { from(rootProject.file("LICENSE")); from(rootProject.file("LICENSE-JCODEC.txt")) }
 
 tasks.register('mp4Test', JavaExec) {
     dependsOn testClasses
@@ -53,3 +53,4 @@ tasks.register('mp4Test', JavaExec) {
     mainClass = 'net.shoresmp.fabric.Mp4Test'
     systemProperty 'java.awt.headless', 'true'
 }
+tasks.named('test') { failOnNoDiscoveredTests = false }
