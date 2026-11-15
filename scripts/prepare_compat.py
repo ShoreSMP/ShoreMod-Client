@@ -14,6 +14,26 @@ def remove_mixin(name):
  if p.exists():p.unlink()
 if not modern:
  for name in ['GlyphBakerMixin','TextureSamplerAccessor']:remove_mixin(name)
+ if target in ['1.21.5','1.21.8','1.21.10']:
+  remove_mixin('ChatHeadsBackendMixin')
+  callback='CallbackInfoReturnable<Integer>' if target=='1.21.5' else 'CallbackInfo'
+  result='I' if target=='1.21.5' else 'V'
+  (src/'net/shoresmp/fabric/mixin/LegacyChatHeadsMixin.java').write_text("""package net.shoresmp.fabric.mixin;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.font.TextRenderer;
+import net.minecraft.text.OrderedText;
+import net.shoresmp.fabric.ShoreChatHeads;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.*;
+import org.spongepowered.asm.mixin.injection.callback.*;
+@Mixin(DrawContext.class)
+public abstract class LegacyChatHeadsMixin {
+ @Inject(method="drawText(Lnet/minecraft/client/font/TextRenderer;Lnet/minecraft/text/OrderedText;IIIZ)RESULT",at=@At("HEAD"))
+ private void shore$head(TextRenderer font,OrderedText text,int x,int y,int color,boolean shadow,CALLBACK ci){ShoreChatHeads.draw((DrawContext)(Object)this,text,x,y,color);}
+}
+""".replace('CALLBACK',callback).replace('RESULT',result))
+  p=res/'shoremod.mixins.json';meta=json.loads(p.read_text());meta['client'].append('LegacyChatHeadsMixin');p.write_text(json.dumps(meta,indent=2))
+
 (src/'net/shoresmp/fabric/ShoreSelfTest.java').write_text('package net.shoresmp.fabric; public final class ShoreSelfTest { public static void register(){} }')
 loader='0.20.1' if modern else '0.19.2'
 api=cfg['fabric_api'];plugin="net.fabricmc.fabric-loom" if modern else "fabric-loom";loom="1.18.2" if modern else "1.14.10";conf="implementation" if modern else "modImplementation"
@@ -26,8 +46,9 @@ deps+=f"    {conf} 'net.fabricmc:fabric-loader:{loader}'\n    {conf} 'net.fabric
 deps+="    implementation project(':common')\n    include project(':common')\n}\n"
 deps+=f"base {{ archivesName = 'ShoreMod-Fabric-{target}' }}\n"
 if modern:deps+="java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }\ntasks.withType(JavaCompile).configureEach { options.release = 25 }\n"
+deps+='\ntasks.withType(Jar).configureEach { from(rootProject.file("LICENSE")) }\n'
 (root/'fabric/build.gradle').write_text(deps)
-meta=json.loads((res/'fabric.mod.json').read_text(encoding='utf-8-sig'));meta['version']='1.2.3';meta['depends']['minecraft']=target
+meta=json.loads((res/'fabric.mod.json').read_text(encoding='utf-8-sig'));meta['version']='1.3.0';meta['depends']['minecraft']=target
 meta['depends']['java']='>=25' if modern else '>=21';meta['depends']['fabricloader']='>='+loader;meta['depends']['fabric-api']='>='+api.split('+')[0];meta['depends'].pop('rinku',None)
 meta['custom']={'shoremod:build-target':target}
 (res/'fabric.mod.json').write_text(json.dumps(meta,indent=2))
@@ -38,6 +59,8 @@ if not modern:
   if target!='1.21.10':s=s.replace('net.minecraft.entity.PlayerLikeEntity','net.minecraft.client.network.AbstractClientPlayerEntity').replace('PlayerLikeEntity','AbstractClientPlayerEntity').replace('Lnet/minecraft/entity/PlayerLikeEntity;','Lnet/minecraft/client/network/AbstractClientPlayerEntity;').replace('Lnet/minecraft/entity/AbstractClientPlayerEntity;','Lnet/minecraft/client/network/AbstractClientPlayerEntity;')
   if target!='1.21.10':s=s.replace('import net.minecraft.text.StyleSpriteSource;','').replace('new StyleSpriteSource.Font(','(')
   if target!='1.21.10':s=s.replace('.getProfile().id()', '.getProfile().getId()').replace('.getProfile().name()', '.getProfile().getName()')
+  s=s.replace('.getCameraPos()', '.getPos()')
+  if target in ['1.21.5','1.21.8']:s=s.replace('skin.body().texturePath()', 'skin.texture()').replace('net.minecraft.entity.player.SkinTextures','net.minecraft.client.util.SkinTextures')
   s=s.replace('PositionedSoundInstance.ui(', 'PositionedSoundInstance.master(')
   p.write_text(s,encoding='utf-8')
  if target in ['1.21.8','1.21.5']:
@@ -96,6 +119,8 @@ if not modern:
   for p in src.rglob('*.java'):
    s=p.read_text(encoding='utf-8-sig').replace('gs=w.getScaleFactor()','gs=(int)w.getScaleFactor()')
    s=s.replace('m.translate(x,y)','m.translate(x,y,0)').replace('m.translate(p(x),Math.round(y*u+offset))','m.translate(p(x),Math.round(y*u+offset),0)')
+   s=s.replace('m.rotate(angle)','m.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Z.rotation(angle))')
+   s=s.replace('Lcom/mojang/blaze3d/pipeline/RenderPipeline;', 'Ljava/util/function/Function;')
    s=s.replace('m.scale(b.scale(),b.scale())','m.scale(b.scale(),b.scale(),1)').replace('m.scale(sc,sc)','m.scale(sc,sc,1)').replace('m.scale(k,k)','m.scale(k,k,1)')
    s=s.replace('net.minecraft.client.gl.RenderLayer::getGuiTextured','net.minecraft.client.render.RenderLayer::getGuiTextured')
    p.write_text(s,encoding='utf-8')

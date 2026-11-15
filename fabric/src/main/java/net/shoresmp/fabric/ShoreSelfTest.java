@@ -213,7 +213,46 @@ final class ShoreSelfTest {
         step(10,c->{log(verdict(Math.abs(paymentUiUnit(c)/paymentUnit-0.7f)<0.01f)+" payment dialog geometry shrinks to seventy percent");paymentButtons(c);shot(c,"payment_compact");});
         step(2,c->{ShoreClient.config.menuScale=100;c.setScreen(new ShoreScreen(null));((ShoreScreen)c.currentScreen).showPage("GENERAL");});
         step(10,ShoreSelfTest::sizeEditing);
+        planVisuals();
         step(2,c->{log("HUD scale regression done");finish(c);});
+    }
+    private static void planVisuals(){
+        step(2,c->{
+            c.setScreen(null);var cfg=ShoreClient.config;
+            cfg.recording=true;cfg.lowOverhead=true;long before=ShoreClient.recorder.captureRequests();ShoreClient.recorder.capture();ShoreClient.recorder.capture();
+            log(verdict(before==ShoreClient.recorder.captureRequests())+" performance mode makes zero framebuffer capture requests");cfg.recording=false;
+            cfg.savedWaypoints.clear();cfg.waypointName="Visual test";cfg.waypointCoordinates="100 64 -100";
+            log(verdict(ShoreVisuals.saveWaypoint()&&cfg.savedWaypoints.getFirst().x==100&&cfg.savedWaypoints.getFirst().z== -100)+" typed waypoint coordinates persist");
+            int saved=cfg.savedWaypoints.size();cfg.waypointCoordinates="NaN 64 1";log(verdict(!ShoreVisuals.saveWaypoint()&&cfg.savedWaypoints.size()==saved)+" invalid waypoint cannot overwrite markers");cfg.waypointCoordinates="";
+            cfg.blockOverlay=cfg.coloredHitboxes=cfg.totemTweaks=cfg.chatHeads=cfg.guiTweaks=cfg.betterF3=true;
+            cfg.hitboxPlayersOnly=false;
+            var ahead=c.player.getEyePos().add(c.player.getRotationVec(1).multiply(12));cfg.waypointName="Ahead";cfg.waypointCoordinates=(int)Math.floor(ahead.x)+" "+(int)Math.floor(ahead.y)+" "+(int)Math.floor(ahead.z);ShoreVisuals.saveWaypoint();cfg.waypointCoordinates="";
+            var server=c.getServer();var id=c.player.getUuid();server.execute(()->{
+                var sp=server.getPlayerManager().getPlayer(id);sp.equipStack(net.minecraft.entity.EquipmentSlot.OFFHAND,new ItemStack(Items.TOTEM_OF_UNDYING));
+                var look=sp.getRotationVec(1);var pos=sp.getEyePos().add(look.multiply(3));var w=sp.getEntityWorld();
+                w.setBlockState(net.minecraft.util.math.BlockPos.ofFloored(pos),Blocks.STONE.getDefaultState());
+                var side=pos.add(look.z*1.5,-1,-look.x*1.5);w.spawnEntity(new net.minecraft.entity.decoration.ArmorStandEntity(w,side.x,side.y,side.z));
+            });
+            var message=net.minecraft.text.Text.literal("<"+c.player.getName().getString()+"> Chat heads test");
+            log(verdict(ShoreChatHeads.decorate(message).getString().startsWith("   "))+" chat heads identify the sender and reserve space");
+            c.inGameHud.getChatHud().addMessage(message);
+        });
+        step(15,c->{
+            log(verdict(c.crosshairTarget instanceof net.minecraft.util.hit.BlockHitResult h&&h.getType()==net.minecraft.util.hit.HitResult.Type.BLOCK)+" block overlay renders a real targeted block");
+            try{var f=ShoreVisuals.class.getDeclaredField("entities");f.setAccessible(true);log(verdict(!((java.util.List<?>)f.get(null)).isEmpty())+" hitbox overlay has a visible nearby entity");}catch(Exception e){throw new IllegalStateException(e);}
+            c.gameRenderer.showFloatingItem(new ItemStack(Items.TOTEM_OF_UNDYING));});
+        step(3,c->shot(c,"visual_modules"));
+        step(3,c->{c.debugHudEntryList.setF3Enabled(true);});
+        step(10,c->shot(c,"better_f3"));
+        step(2,c->{c.debugHudEntryList.setF3Enabled(false);c.setScreen(new net.minecraft.client.gui.screen.ingame.InventoryScreen(c.player));});
+        step(10,c->{
+            ShoreClient.config.inventoryOpacity=40;int tinted=ShoreVisuals.guiTint(0xFFFFFFFF);
+            log(verdict(tinted==0x66FFFFFF)+" inventory texture alpha follows configured opacity");shot(c,"transparent_inventory");
+        });
+        step(2,c->{c.setScreen(null);log(verdict(ShoreVisuals.guiTint(0xFFFFFFFF)==0xFFFFFFFF)+" GUI tint leaves world textures unchanged");c.setScreen(new ShoreScreen(null));});
+        for(String module:new String[]{"performance","blockoverlay","betterf3","guitweaks","hitboxes","totemtweaks","waypoints","chat"}){
+            step(2,c->((ShoreScreen)c.currentScreen).showModule(module));step(6,c->shot(c,"settings_"+module));
+        }
     }
     private static void enterWorld(){
         // Wait for resource loading to finish before driving the settings UI.

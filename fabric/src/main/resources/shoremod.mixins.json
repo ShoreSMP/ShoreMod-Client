@@ -15,7 +15,12 @@
     "GlyphBakerMixin",
     "TextureSeedMixin",
     "BrightnessMixin",
-    "BrightnessOptionsMixin"
+    "BrightnessOptionsMixin",
+    "CleanDebugMixin",
+    "ScreenBackgroundMixin",
+    "TotemHeldMixin",
+    "GuiOpacityMixin",
+    "ChatHeadsBackendMixin"
   ],
   "injectors": {
     "defaultRequire": 1

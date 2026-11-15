@@ -18,7 +18,8 @@ for p in src.rglob('*.java'):
  s=s.replace('.handleInventoryMouseClick(','.handleContainerInput(')
  if target in ['26.2','26.3']:
   s=s.replace('client.hud.', 'client.gui.hud.').replace('client.gui.setOverlayMessage(', 'client.gui.hud.setOverlayMessage(')
-  s=s.replace('client.options.hideGui','client.gui.hud.isHidden()')
+  s=s.replace('client.options.hideGui','client.gui.hud.isHidden()').replace('mc.options.hideGui','mc.gui.hud.isHidden()')
+  s=s.replace('.gameRenderer.getMainCamera()', '.gameRenderer.mainCamera()')
   s=s.replace('client.getMainRenderTarget()', 'client.gameRenderer.mainRenderTarget()')
   s=s.replace('minecraft.levelRenderer.allChanged()', 'minecraft.levelRenderer.invalidateCompiledGeometry(minecraft.level,minecraft.options,minecraft.gameRenderer.mainCamera(),minecraft.getBlockColors())')
   s=s.replace('client.levelRenderer.allChanged()', 'client.levelRenderer.invalidateCompiledGeometry(client.level,client.options,client.gameRenderer.mainCamera(),client.getBlockColors())')
@@ -71,4 +72,5 @@ for p in src.rglob('*.java'):
  if p.name=='HandledScreenMixin.java':
   s=s.replace('method="renderContents"','method="extractContents"').replace('method="renderTooltip"','method="extractTooltip"')
  p.write_text(s,encoding='utf-8')
+
 

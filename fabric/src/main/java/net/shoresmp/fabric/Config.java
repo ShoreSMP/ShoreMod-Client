@@ -33,6 +33,20 @@ public final class Config {
     public boolean fullbright = false;
     public int fullbrightStrength = 60;
     public int hudCustomColor = 0xFFFFFF, crosshairCustomColor = 0xFFFFFF, mentionCustomColor = 0x35DBD2;
+    // Optional visual tools. Bounded settings; no server changes.
+    public boolean lowOverhead=true, performanceDefaultsApplied=false, hudItemIcons=false;
+    public boolean chatHeadHat=true;public int chatHeadSize=8;
+    public boolean blockOverlay=false, betterF3=false, guiTweaks=false, guiNoDim=true;
+    public boolean coloredHitboxes=false, hitboxPlayersOnly=true, totemTweaks=false, waypoints=false, chatHeads=false;
+    public boolean debugCoordinates=true, debugTarget=true, debugMemory=true, blockInfo=true;
+    public int blockColor=0x50A7FF, blockOpacity=90, outlineWidth=2, hitboxColor=0x50A7FF, hitboxRange=24;
+    public int inventoryOpacity=75, heldTotemSize=75, heldTotemOpacity=85, popTotemSize=75, popTotemOpacity=85;
+    public int waypointColor=0x50A7FF, waypointRange=10000, waypointScale=100;
+    public String waypointName="Home", waypointCoordinates="";
+    public List<Waypoint> savedWaypoints=new ArrayList<>();
+    public static final class Waypoint {
+        public String name="Waypoint",server="",dimension=""; public int x,y,z,color=0x50A7FF; public boolean enabled=true;
+    }
     // Tools
     public boolean zoomScroll = true, zoomSmooth = true, durabilityAlert = true, deathLog = true, reconnectButton = true, autoReconnect = false;
     public int zoomLevel = 4, durabilityThreshold = 10, autoReconnectDelay = 10;
@@ -95,6 +109,19 @@ public final class Config {
         if(!blueDefaultApplied){if(accent==0x35DBD2)accent=0x50A7FF;blueDefaultApplied=true;}
         if(!darkHudDefaultApplied){if(hudBgOpacity==50)hudBgOpacity=85;darkHudDefaultApplied=true;}
         if(!compactGuiDefaultApplied){if(menuScale==100)menuScale=85;compactGuiDefaultApplied=true;}
+        if(!performanceDefaultsApplied){recording=false;lowOverhead=true;performanceDefaultsApplied=true;}
+        chatHeadSize=Math.clamp(chatHeadSize,4,8);
+        blockOpacity=Math.clamp(blockOpacity,0,100);outlineWidth=Math.clamp(outlineWidth,1,4);hitboxRange=Math.clamp(hitboxRange,4,48);
+        inventoryOpacity=Math.clamp(inventoryOpacity,10,100);
+        heldTotemSize=Math.clamp(heldTotemSize,10,200);popTotemSize=Math.clamp(popTotemSize,10,200);
+        heldTotemOpacity=Math.clamp(heldTotemOpacity,0,100);popTotemOpacity=Math.clamp(popTotemOpacity,0,100);
+        waypointRange=Math.clamp(waypointRange,16,30000000);waypointScale=Math.clamp(waypointScale,50,150);
+        blockColor&=0xFFFFFF;hitboxColor&=0xFFFFFF;waypointColor&=0xFFFFFF;
+        if(waypointName==null)waypointName="Home";if(waypointCoordinates==null)waypointCoordinates="";
+        if(savedWaypoints==null)savedWaypoints=new ArrayList<>();
+        savedWaypoints.removeIf(w->w==null||w.name==null||w.server==null||w.dimension==null||Math.abs((long)w.x)>30000000||Math.abs((long)w.z)>30000000||w.y< -2048||w.y>2048);
+        while(savedWaypoints.size()>64)savedWaypoints.removeLast();
+        for(var w:savedWaypoints){w.name=w.name.substring(0,Math.min(32,w.name.length()));w.color&=0xFFFFFF;}
         chatHistoryLimit = Math.clamp(chatHistoryLimit,100,20000);
         clipFps = Math.clamp(clipFps, 5, 60); clipWidth = Math.clamp(clipWidth, 320, 1920);
         panelOpacity = Math.clamp(panelOpacity, 20, 100); maxClipStorageMb = Math.clamp(maxClipStorageMb, 128, 16384);

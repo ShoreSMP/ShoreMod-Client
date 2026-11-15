@@ -40,3 +40,5 @@ if (providers.gradleProperty('creativeRegression').isPresent()) {
 if (providers.gradleProperty('hudRegression').isPresent()) {
     loom { runs { client { vmArg '-Dshoremod.selftest=hud'; programArgs '--username', 'ShoreModTest', '--width', '1280', '--height', '720' } } }
 }
+
+tasks.withType(Jar).configureEach { from(rootProject.file("LICENSE")) }

@@ -23,6 +23,8 @@ public final class ClipRecorder implements AutoCloseable {
     private final AtomicBoolean capturePending = new AtomicBoolean(), exporting = new AtomicBoolean();
     private final AtomicInteger epoch = new AtomicInteger();
     private long nextFrame, lastTrigger;
+    private long captureRequests;
+    public long captureRequests(){return captureRequests;}
     private volatile long lastGameplay;
     private volatile Path lastClip;
     private volatile String status = "Buffer warming up";
@@ -34,7 +36,7 @@ public final class ClipRecorder implements AutoCloseable {
     private ImageWriter jpegWriter;
     public Path directory() { return MinecraftClient.getInstance().runDirectory.toPath().resolve("shoremod-clips"); }
     public Path lastClip() { return lastClip; }
-    public String status() { return ShoreClient.config.recording ? status : "Recording disabled"; }
+    public String status() { return ShoreClient.config.lowOverhead ? "Paused by performance mode" : ShoreClient.config.recording ? status : "Recording disabled"; }
     public void beginSession() {
         var client=MinecraftClient.getInstance();
         String server=client.getCurrentServerEntry()==null?"singleplayer":client.getCurrentServerEntry().address;
@@ -51,7 +53,7 @@ public final class ClipRecorder implements AutoCloseable {
     /** Called after the entire world and GUI have rendered, on the render thread. */
     public void capture() {
         MinecraftClient client=MinecraftClient.getInstance();
-        if(closed || !ShoreClient.config.recording || client.world==null) return;
+        if(closed || !ShoreClient.config.recording || ShoreClient.config.lowOverhead || client.world==null) return;
         long now=System.nanoTime(); lastGameplay=now;
         budget.observe(now);
         if(client.currentScreen!=null){status="Paused in menus; gameplay capture resumes on close";return;}
@@ -59,6 +61,7 @@ public final class ClipRecorder implements AutoCloseable {
         if(capturePending.get() || !budget.allow(now,ShoreClient.config.clipFps,(long)client.getWindow().getFramebufferWidth()*client.getWindow().getFramebufferHeight(),ShoreClient.config.recordingProtectFps) || !capturePending.compareAndSet(false,true))return;
         int captureEpoch=epoch.get(); int maxWidth=ShoreClient.config.clipWidth;
         try {
+            captureRequests++;
             ScreenshotRecorder.takeScreenshot(client.getFramebuffer(), image -> {
                 if(closed) {image.close();capturePending.set(false);return;}
                 try {

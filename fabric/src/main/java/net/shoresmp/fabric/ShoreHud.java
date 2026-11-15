@@ -94,6 +94,7 @@ public final class ShoreHud {
     private static final int BOX_H=16,GEAR_H=20,PAD_X=5,KEY=20,KEY_GAP=2;
 
     private static void render(DrawContext ctx){
+        ShoreVisuals.render(ctx);
         var client=MinecraftClient.getInstance();Config c=ShoreClient.config;
         if(c==null||client.player==null||client.options.hudHidden||client.getDebugHud().shouldShowDebugHud())return;
         var tr=client.textRenderer;
@@ -155,11 +156,14 @@ public final class ShoreHud {
         }
     }
     private static Block itemRow(net.minecraft.client.font.TextRenderer tr,ItemStack stack,String label,int color,float sc){
-        int w=PAD_X+16+4+tr.getWidth(label)+PAD_X;
+        int iconWidth=ShoreClient.config.hudItemIcons?20:0;
+        if(!ShoreClient.config.hudItemIcons)label=stack.getName().getString()+" "+label;
+        final String text=label;
+        int w=PAD_X+iconWidth+tr.getWidth(text)+PAD_X;
         return new Block(w,GEAR_H,sc,g->{
             box(g,0,0,w,GEAR_H);
-            g.drawItem(stack,PAD_X-1,2);
-            g.drawText(tr,label,PAD_X+19,(GEAR_H-8)/2+1,color,ShoreClient.config.hudShadow);
+            if(ShoreClient.config.hudItemIcons)g.drawItem(stack,PAD_X-1,2);
+            g.drawText(tr,text,PAD_X+iconWidth,(GEAR_H-8)/2+1,color,ShoreClient.config.hudShadow);
         });
     }
     private record ItemCount(ItemStack icon,int amount,String label){}

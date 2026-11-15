@@ -1,0 +1,332 @@
+name: Build and release ShoreMod
+on:
+  push:
+    branches: ['main']
+    paths: ['fabric/**', 'common/**', 'plugin/**', 'scripts/**', 'build.gradle', 'gradle.properties', 'settings.gradle', 'gradle/**', '.github/workflows/compat-build.yml']
+  workflow_dispatch:
+concurrency:
+  group: shore-settings-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install client runtime libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libflite1 mesa-utils libegl1 libnss3 libgbm1 libgtk-3-0t64 libasound2t64
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: python3 scripts/prepare_base_smoke.py
+      - run: bash gradlew build --console=plain --stacktrace
+      - run: python3 scripts/verify_compat.py '1.21.11'
+      - name: Client startup and settings checks
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          MESA_GL_VERSION_OVERRIDE: '4.6'
+        run: |
+          set +e
+          xvfb-run -a timeout 240 bash gradlew :fabric:runClient -PcompatSmoke --console=plain >compat-smoke.log 2>&1
+          result=$?
+          tail -90 compat-smoke.log
+          test "$result" = 0 && grep -q SHORE_COMPAT_SMOKE_PASS compat-smoke.log && grep -q SHORE_CUSTOM_SETTINGS_PASS compat-smoke.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ShoreMod-Fabric-1.21.11
+          path: |
+            fabric/build/libs/*.jar
+            !fabric/build/libs/*-sources.jar
+      - uses: actions/upload-artifact@v4
+        if: hashFiles('plugin/build.gradle') != ''
+        with:
+          name: ShoreMod-Plugin-1.21.11
+          path: |
+            plugin/build/libs/*.jar
+            !plugin/build/libs/*-sources.jar
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Diagnostics-1.21.11
+          path: |
+            compat-smoke.log
+            fabric/run/logs/latest.log
+            fabric/run/crash-reports/*
+  old-ports:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        minecraft: ['1.21.10','1.21.8','1.21.5']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install client runtime libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libflite1 mesa-utils libegl1 libnss3 libgbm1 libgtk-3-0t64 libasound2t64
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: python3 scripts/prepare_compat.py '${{ matrix.minecraft }}'
+      - run: bash gradlew :common:coreTest :fabric:build :fabric:compatClasspath --console=plain --stacktrace
+      - run: python3 scripts/finalize_compat.py '${{ matrix.minecraft }}'
+      - run: python3 scripts/verify_compat.py '${{ matrix.minecraft }}'
+      - name: Client startup and settings smoke test
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          MESA_GL_VERSION_OVERRIDE: '4.6'
+          SDL_VIDEO_DRIVER: x11
+          SDL_VIDEO_FORCE_EGL: '1'
+        run: |
+          set +e
+          xvfb-run -a timeout 240 bash gradlew :fabric:runClient -PcompatSmoke --console=plain >compat-smoke.log 2>&1
+          result=$?
+          tail -90 compat-smoke.log
+          test "$result" = 0 && grep -q SHORE_COMPAT_SMOKE_PASS compat-smoke.log && grep -q SHORE_CUSTOM_SETTINGS_PASS compat-smoke.log
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: ShoreMod-Fabric-${{ matrix.minecraft }}
+          if-no-files-found: error
+          path: |
+            fabric/build/libs/*.jar
+            !fabric/build/libs/*-sources.jar
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Diagnostics-${{ matrix.minecraft }}
+          path: |
+            compat-api.txt
+            fabric/build/compat-verification.json
+            compat-smoke.log
+            fabric/run/logs/latest.log
+            fabric/run/crash-reports/*
+            fabric/run/hs_err_pid*.log
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - run: bash gradlew :fabric:migrateMappings --mappings net.minecraft:mappings:1.21.11 --output remappedSrc --console=plain --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Mojang-mapped-source
+          path: fabric/remappedSrc
+          if-no-files-found: error
+  new-ports:
+    needs: migrate
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        minecraft: ['26.1','26.2','26.3']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install client runtime libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libflite1 mesa-utils libegl1 libnss3 libgbm1 libgtk-3-0t64 libasound2t64
+      - uses: actions/download-artifact@v4
+        with:
+          name: Mojang-mapped-source
+          path: fabric/src/main/java
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.7.0'
+      - run: python3 scripts/prepare_compat.py '${{ matrix.minecraft }}'
+      - run: gradle :fabric:compatClasspath --console=plain
+      - run: python3 scripts/finalize_compat.py '${{ matrix.minecraft }}'
+      - run: gradle :common:coreTest :fabric:build --console=plain --stacktrace
+      - run: python3 scripts/verify_compat.py '${{ matrix.minecraft }}'
+      - name: Client startup and settings smoke test
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          MESA_GL_VERSION_OVERRIDE: '4.6'
+          SDL_VIDEO_DRIVER: x11
+          SDL_VIDEO_FORCE_EGL: '1'
+        run: |
+          set +e
+          xvfb-run -a timeout 240 gradle :fabric:runClient -PcompatSmoke --console=plain >compat-smoke.log 2>&1
+          result=$?
+          tail -90 compat-smoke.log
+          test "$result" = 0 && grep -q SHORE_COMPAT_SMOKE_PASS compat-smoke.log
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: ShoreMod-Fabric-${{ matrix.minecraft }}
+          if-no-files-found: error
+          path: |
+            fabric/build/libs/*.jar
+            !fabric/build/libs/*-sources.jar
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Diagnostics-${{ matrix.minecraft }}
+          path: |
+            compat-api.txt
+            fabric/build/compat-verification.json
+            compat-smoke.log
+            fabric/run/logs/latest.log
+            fabric/run/crash-reports/*
+            fabric/run/hs_err_pid*.log
+
+  creative-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install client runtime libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libflite1 mesa-utils libegl1 libnss3 libgbm1 libgtk-3-0t64 libasound2t64
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Run actual creative inventory input regression
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          MESA_GL_VERSION_OVERRIDE: '4.6'
+        run: |
+          set +e
+          xvfb-run -a timeout 300 bash gradlew :fabric:runClient -PcreativeRegression --console=plain >creative-regression.log 2>&1
+          result=$?
+          tail -80 creative-regression.log
+          test "$result" = 0 && grep -q 'PASS creative delete X' fabric/run/shoremod-selftest.txt && grep -q 'PASS creative shift-delete' fabric/run/shoremod-selftest.txt && ! grep -qE 'FAIL|ERROR' fabric/run/shoremod-selftest.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Creative-inventory-regression
+          path: |
+            creative-regression.log
+            fabric/run/shoremod-selftest.txt
+            fabric/run/screenshots/selftest_creative_delete.png
+  hud-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install client runtime libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libflite1 mesa-utils libegl1 libnss3 libgbm1 libgtk-3-0t64 libasound2t64
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Measure rendered HUD boxes and compact payment geometry
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          MESA_GL_VERSION_OVERRIDE: '4.6'
+        run: |
+          set +e
+          xvfb-run -a timeout 300 bash gradlew :fabric:runClient -PhudRegression --console=plain >hud-regression.log 2>&1
+          result=$?
+          tail -80 hud-regression.log
+          test "$result" = 0 && grep -q 'PASS HUD physical boxes' fabric/run/shoremod-selftest.txt && grep -q 'PASS HUD boxes halve' fabric/run/shoremod-selftest.txt && grep -q 'PASS payment dialog geometry' fabric/run/shoremod-selftest.txt && ! grep -qE 'FAIL|ERROR' fabric/run/shoremod-selftest.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: HUD-payment-regression
+          path: |
+            hud-regression.log
+            fabric/run/shoremod-selftest.txt
+            fabric/run/screenshots/selftest_payment_compact.png
+            fabric/run/screenshots/selftest_visual_modules.png
+            fabric/run/screenshots/selftest_better_f3.png
+            fabric/run/screenshots/selftest_transparent_inventory.png
+            fabric/run/screenshots/selftest_settings_*.png
+  bundle:
+    permissions:
+      contents: write
+    needs: [baseline, old-ports, new-ports, creative-regression, hud-regression]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ShoreMod-*
+          merge-multiple: true
+          path: jars
+      - name: Verify complete release bundle
+        run: |
+          python3 - <<'PY'
+          import json,pathlib,zipfile
+          jars=list(pathlib.Path('jars').glob('*.jar'))
+          assert len(jars)==(8 if pathlib.Path('plugin/build.gradle').is_file() else 7),jars
+          versions=set();plugins=0
+          for path in jars:
+              with zipfile.ZipFile(path) as jar:
+                  if 'fabric.mod.json' in jar.namelist():
+                      meta=json.loads(jar.read('fabric.mod.json'))
+                      assert meta['version']=='1.3.0',meta
+                      versions.add(meta['depends']['minecraft'])
+                  else:
+                      assert 'plugin.yml' in jar.namelist()
+                      plugins+=1
+          assert plugins==(1 if pathlib.Path('plugin/build.gradle').is_file() else 0)
+          assert versions=={'1.21.11','1.21.10','1.21.8','1.21.5','26.1','26.2','26.3'},versions
+          print('PASS: seven client versions; companion plugin included only in private checkout')
+          PY
+      - name: Package one universal client
+        run: python3 scripts/package_universal.py jars universal/ShoreMod-1.3.0.jar
+      - name: Verify real Fabric version selection
+        run: python3 scripts/check_universal.py universal/ShoreMod-1.3.0.jar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ShoreMod-1.3.0
+          if-no-files-found: error
+          path: universal/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ShoreMod-1.3.0-All-Jars
+          path: jars/*.jar
+          if-no-files-found: error
+
+      - name: Publish tested client release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view v1.3.0 >/dev/null 2>&1; then
+            echo "Release v1.3.0 already exists; preserving its published assets."
+            exit 0
+          fi
+          cat > release-notes.txt <<'NOTES'
+          ShoreMod 1.3.0
+
+          Adds configurable block outlines, Better F3, inventory transparency and GUI sizing, colored hitboxes, lightweight totem size/opacity controls, local waypoints, and chat heads.
+
+          Performance mode skips framebuffer recording entirely. Recording is disabled during the first upgrade to this version; enabling the recorder explicitly exits performance mode. HUD item models are opt-in, and repeated badge text is cached.
+
+          One JAR supports Minecraft 1.21.5, 1.21.8, 1.21.10, 1.21.11, 26.1, 26.2, and 26.3. Use Fabric Loader 0.19.2+ and Java 21 for the listed 1.21.x versions; use Loader 0.20.1+ and Java 25 for 26.x. Install the matching Fabric API. Replace the old ShoreMod JAR.
+
+          All new modules are optional. Totem Tweaks uses a lightweight first-person sprite and pop animation. Chat heads identify recognized player-name prefixes and use Minecraft-managed skins.
+
+          Builds, startup/mixin checks for all seven versions, core checks, creative inventory regression, and in-world visual/settings checks run before publishing. Exact FPS changes depend on the user's hardware and other mods; this release does not claim a measured 200-FPS improvement.
+          NOTES
+          gh release create v1.3.0 universal/ShoreMod-1.3.0.jar universal/ShoreMod-1.3.0.jar.sha256 --target "$GITHUB_SHA" --title "ShoreMod 1.3.0" --notes-file release-notes.txt

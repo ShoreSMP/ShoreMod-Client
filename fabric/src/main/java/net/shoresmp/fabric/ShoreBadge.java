@@ -12,10 +12,12 @@ public final class ShoreBadge {
     private static final Style TAB_STYLE=Style.EMPTY
         .withFont(new StyleSpriteSource.Font(Identifier.of("shoremod","badge_tab")))
         .withColor(0xFFFFFF);
+    private static final java.util.Map<Text,Text> TAB_CACHE=cache(),NAME_CACHE=cache();
+    private static java.util.Map<Text,Text> cache(){return new java.util.LinkedHashMap<>(256,0.75f,true){protected boolean removeEldestEntry(java.util.Map.Entry<Text,Text> e){return size()>512;}};}
     public static Text prependTab(Text label) {
-        return Text.empty().append(Text.literal("\uE000").setStyle(TAB_STYLE)).append(" ").append(label);
+        return TAB_CACHE.computeIfAbsent(label,key->Text.empty().append(Text.literal("\uE000").setStyle(TAB_STYLE)).append(" ").append(key));
     }
     public static Text prepend(Text label) {
-        return Text.empty().append(Text.literal("\uE000").setStyle(LOGO_STYLE)).append(" ").append(label);
+        return NAME_CACHE.computeIfAbsent(label,key->Text.empty().append(Text.literal("\uE000").setStyle(LOGO_STYLE)).append(" ").append(key));
     }
 }

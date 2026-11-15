@@ -102,6 +102,7 @@ public final class ShoreClient implements ClientModInitializer {
             payments.tick(client);
             ShoreTools.tick(client);
             ShorePvp.tick(client);
+            ShoreVisuals.tick(client);
             if (config.extendedChat) client.options.getTextBackgroundOpacity().setValue(config.chatOpacity);
             else if (originalChatOpacity != null) client.options.getTextBackgroundOpacity().setValue(originalChatOpacity);
         });

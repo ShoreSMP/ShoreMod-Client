@@ -7,3 +7,5 @@ tasks.register('coreTest', JavaExec) {
 check.dependsOn coreTest
 // CoreTest is a standalone assertion runner, invoked above, rather than a JUnit suite.
 tasks.named('test') { failOnNoDiscoveredTests = false }
+
+tasks.withType(Jar).configureEach { from(rootProject.file("LICENSE")) }

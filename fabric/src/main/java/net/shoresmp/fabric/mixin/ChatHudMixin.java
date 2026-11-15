@@ -57,6 +57,7 @@ public abstract class ChatHudMixin {
     }
     @Inject(method="addVisibleMessage",at=@At("TAIL"))
     private void shore$markMention(ChatHudLine line,CallbackInfo ci){
+        net.shoresmp.fabric.ShoreChatHeads.remember(line.content(),visibleMessages);
         if(shore$pendingMention){SHORE_MENTIONS.add(line);shore$pendingMention=false;}
         if(!SHORE_MENTIONS.contains(line)||visibleMessages.isEmpty())return;
         // The newest message's wrapped lines sit at the front, ending with the first endOfEntry line.
@@ -132,7 +133,7 @@ public abstract class ChatHudMixin {
         result.append(message);
         if(config.filterDuplicates && shore$count>1)
             result.append(Text.literal(switch(config.stackStyle){case 1->" ("+shore$count+")";case 2->" x"+shore$count;default->" [x"+shore$count+"]";}).setStyle(Style.EMPTY.withColor(0xAAAAAA)));
-        return result;
+        return net.shoresmp.fabric.ShoreChatHeads.decorate(result);
     }
 }
 

@@ -50,7 +50,9 @@ targets=set()
 for p in (src/'net/shoresmp/fabric/mixin').glob('*.java'):
  source=p.read_text(encoding='utf-8')
  match=re.search(r'@Mixin\(([\w.]+)\.class\)',source)
- if not match:continue
+ if not match:
+  for name in re.findall(r'"(net\.minecraft\.[^"]+\$[^"]+)"',source):targets.add(name)
+  continue
  target_name=match[1];outer,*nested=target_name.split('.')
  if target_name.startswith(('net.','com.')):resolved=target_name
  else:

@@ -1,5 +1,6 @@
 package net.shoresmp.fabric;
 
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.Click;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -114,6 +115,51 @@ public final class ShoreScreen extends Screen {
             s.color("Custom text color","Type a hex color; applies to the HUD",()->c.hudCustomColor,v->{c.hudCustomColor=v;c.hudTextColor=3;});
             s.toggle("Text shadow","Minecraft's drop shadow behind the text",()->c.hudShadow,v->c.hudShadow=v);
         };
+        mod("performance","Performance","Reduce recurring rendering and disable framebuffer recording.","Utility","gauge",true,()->c.lowOverhead,v->{c.lowOverhead=v;ShoreClient.recorder.clear();},s->{
+            s.info("Recording", "Performance mode skips framebuffer capture entirely",ShoreClient.recorder::status);
+            s.toggle("HUD item icons","3D item models cost more than plain text labels",()->c.hudItemIcons,v->c.hudItemIcons=v);
+            s.action("Low-overhead preset","Turns off recording and 3D HUD icons","Apply",()->{c.lowOverhead=true;c.recording=false;c.hudItemIcons=false;c.save();ShoreClient.recorder.clear();});
+        });
+        mod("blockoverlay","Block Overlay","Colored outline and details for the block under your crosshair.","Utility","cube",true,()->c.blockOverlay,v->c.blockOverlay=v,s->{
+            s.color("Outline color","RGB hex",()->c.blockColor,v->c.blockColor=v);
+            s.slider("Opacity","",0,100,1,"%",()->c.blockOpacity,v->c.blockOpacity=v);
+            s.slider("Line width","Screen pixels",1,4,1," px",()->c.outlineWidth,v->c.outlineWidth=v);
+            s.toggle("Block information","Name and coordinates near the crosshair",()->c.blockInfo,v->c.blockInfo=v);
+        });
+        mod("betterf3","Better F3","A compact debug panel with the information you choose.","Utility","gauge",true,()->c.betterF3,v->c.betterF3=v,s->{
+            s.toggle("Coordinates","Respects servers with reduced debug info",()->c.debugCoordinates,v->c.debugCoordinates=v);
+            s.toggle("Target block","Block name and coordinates",()->c.debugTarget,v->c.debugTarget=v);
+            s.toggle("Memory","Heap usage",()->c.debugMemory,v->c.debugMemory=v);
+        });
+        mod("guitweaks","GUI Tweaks","Transparent inventory backgrounds and adjustable Minecraft GUI size.","Inventory","gear",true,()->c.guiTweaks,v->c.guiTweaks=v,s->{
+            s.toggle("Clear world background","Remove blur and dimming behind inventory screens",()->c.guiNoDim,v->c.guiNoDim=v);
+            s.slider("Inventory opacity","Background textures only; items and text stay readable",10,100,1,"%",()->c.inventoryOpacity,v->c.inventoryOpacity=v);
+            s.slider("Minecraft GUI scale","Changes vanilla menus, inventory and HUD size",1,6,1,"x",()->MinecraftClient.getInstance().options.getGuiScale().getValue(),v->{var mc=MinecraftClient.getInstance();mc.options.getGuiScale().setValue(v);mc.options.write();mc.onResolutionChanged();});
+        });
+        mod("hitboxes","Hitboxes","Colored wireframes for nearby visible entities.","PvP","box",true,()->c.coloredHitboxes,v->c.coloredHitboxes=v,s->{
+            s.color("Color","RGB hex",()->c.hitboxColor,v->c.hitboxColor=v);
+            s.toggle("Players only","Skip mobs and other entities",()->c.hitboxPlayersOnly,v->c.hitboxPlayersOnly=v);
+            s.slider("Range","Limits nearby entity checks",4,48,1,"m",()->c.hitboxRange,v->c.hitboxRange=v);
+            s.info("Visibility","Only entities in line of sight; at most 32 at a time",()->"");
+        });
+        mod("totemtweaks","Totem Tweaks","Use a lightweight, customizable totem sprite in your hand and on pop.","PvP","totem",true,()->c.totemTweaks,v->c.totemTweaks=v,s->{
+            s.slider("Held size","First-person totem sprite",10,200,1,"%",()->c.heldTotemSize,v->c.heldTotemSize=v);
+            s.slider("Held opacity","0 hides the held sprite",0,100,1,"%",()->c.heldTotemOpacity,v->c.heldTotemOpacity=v);
+            s.slider("Pop size","Size of the pop animation",10,200,1,"%",()->c.popTotemSize,v->c.popTotemSize=v);
+            s.slider("Pop opacity","0 hides the pop animation",0,100,1,"%",()->c.popTotemOpacity,v->c.popTotemOpacity=v);
+        });
+        mod("waypoints","Waypoints","Local markers saved separately for each server and dimension.","Utility","pin",true,()->c.waypoints,v->c.waypoints=v,s->{
+            s.field("Name","Up to 32 characters","Home",c.waypointName,v->{c.waypointName=v.substring(0,Math.min(32,v.length()));c.save();});
+            s.field("Coordinates","Leave blank to use your current position","X Y Z",c.waypointCoordinates,v->{c.waypointCoordinates=v;c.save();});
+            s.color("New marker color","RGB hex",()->c.waypointColor,v->c.waypointColor=v);
+            s.action("Save waypoint","Maximum 64 local markers","Save",()->{ShoreVisuals.saveWaypoint();s.build();});
+            s.slider("Visible range","Distance in blocks",16,30000000,16,"m",()->c.waypointRange,v->c.waypointRange=v);
+            s.slider("Label size","",50,150,1,"%",()->c.waypointScale,v->c.waypointScale=v);
+            for(var w:new ArrayList<>(c.savedWaypoints)){
+                s.toggle(w.name+" ["+w.x+", "+w.y+", "+w.z+"]","Saved on "+w.dimension,()->w.enabled,v->w.enabled=v);
+                s.action("Delete "+w.name,"Remove this local marker","Delete",()->{c.savedWaypoints.remove(w);c.save();s.build();});
+            }
+        });
         mod("fps","FPS","Your frames per second.","HUD","gauge",true,()->c.hudFps,v->c.hudFps=v,hudSettings.apply("fps"));
         mod("ping","Ping","Your latency to the server in milliseconds.","HUD","signal",true,()->c.hudPing,v->c.hudPing=v,hudSettings.apply("ping"));
         mod("coords","Coordinates","Your position and the direction you are facing.","HUD","pin",true,()->c.hudCoords,v->c.hudCoords=v,hudSettings.apply("coords"));
@@ -140,6 +186,10 @@ public final class ShoreScreen extends Screen {
             s.field("Highlight words","Separate words with commas","e.g. diamonds, base, trade",String.join(", ",c.highlightWords),v->{c.highlightWords=parse(v);c.save();});
         });
         mod("chat","Chat Tweaks","Longer chat history and an adjustable background.","Chat","chat",false,()->c.extendedChat,v->c.extendedChat=v,s->{
+            s.section("Appearance");
+            s.toggle("Chat heads","Show a sender skin beside player messages",()->c.chatHeads,v->c.chatHeads=v);
+            s.slider("Head size","Fits inside a normal chat line",4,8,1," px",()->c.chatHeadSize,v->c.chatHeadSize=v);
+            s.toggle("Head outer layer","Show hats and the skin outer layer",()->c.chatHeadHat,v->c.chatHeadHat=v);
             s.section("History");
             s.slider("History length","Messages kept when you scroll back",100,20000,100,"",()->c.chatHistoryLimit,v->c.chatHistoryLimit=v);
             s.section("Look");
@@ -245,9 +295,9 @@ public final class ShoreScreen extends Screen {
             s.section("Messages");
             s.toggle("Announce in chat","Tell you where you died right after it happens",()->c.deathAnnounce,v->c.deathAnnounce=v);
             s.section("History");
-            s.info("Last death",c.deaths.isEmpty()?"Nothing recorded yet":c.deaths.getFirst().split("  Â·  ")[0],()->{
+            s.info("Last death",c.deaths.isEmpty()?"Nothing recorded yet":c.deaths.getFirst().split("  ·  ")[0],()->{
                 if(c.deaths.isEmpty())return "None";
-                String[] p=c.deaths.getFirst().split("  Â·  ");return p.length>2?p[2]+"  "+p[1]:c.deaths.getFirst();});
+                String[] p=c.deaths.getFirst().split("  ·  ");return p.length>2?p[2]+"  "+p[1]:c.deaths.getFirst();});
             s.info("Saved deaths","The last 10 are kept",()->String.valueOf(c.deaths.size()));
             if(!c.deaths.isEmpty())s.action("Clear history","Forget every saved death location","Clear",()->{c.deaths.clear();c.save();s.build();});
         });
@@ -264,12 +314,12 @@ public final class ShoreScreen extends Screen {
             s.toggle("Tab list","Beside names in the player list",()->c.badgeTab,v->c.badgeTab=v);
         });
 
-        mod("clips","Clip Recorder","Keep the last 30 seconds so you can save punishments and moments.","Clips","record",false,()->c.recording,v->{c.recording=v;ShoreClient.recorder.clear();},s->{
+        mod("clips","Clip Recorder","Keep the last 30 seconds so you can save punishments and moments.","Clips","record",false,()->c.recording,v->{c.recording=v;if(v)c.lowOverhead=false;ShoreClient.recorder.clear();},s->{
             s.info("Recorder status","Recording is opt-in; menus are never captured",ShoreClient.recorder::status);
             s.section("Video");
             s.toggle("Protect FPS","Adaptive capture rate; pauses on very slow frames and menus",()->c.recordingProtectFps,v->{c.recordingProtectFps=v;ShoreClient.recorder.clear();});
             s.slider("Frame rate","Up to 60 FPS. Above 30 disables FPS protection and uses more GPU/CPU",5,60,1," FPS",()->c.clipFps,v->{c.clipFps=v;if(v>30)c.recordingProtectFps=false;ShoreClient.recorder.clear();});
-            s.slider("Resolution","Video width, bounded to 320â€“1920 pixels",320,1920,20," px",()->c.clipWidth,v->{c.clipWidth=v;ShoreClient.recorder.clear();});
+            s.slider("Resolution","Video width, bounded to 320–1920 pixels",320,1920,20," px",()->c.clipWidth,v->{c.clipWidth=v;ShoreClient.recorder.clear();});
             s.keybind("Save a clip","Save the last 30 seconds right now",ShoreClient.clipKey);
             s.section("Auto-save");
             s.toggle("Save on every disconnect","When off, only punishment disconnects are saved",()->c.saveEveryDisconnect,v->c.saveEveryDisconnect=v);
@@ -438,12 +488,12 @@ public final class ShoreScreen extends Screen {
     Row info(String title,String help,Supplier<String> value){Row r=row(INFO,title,help);r.value=value;return r;}
     Row slider(String title,String help,int min,int max,int step,String suffix,IntSupplier get,IntConsumer set){
         Row r=row(SLIDER,title,help);r.min=min;r.max=max;r.step=step;r.suffix=suffix;r.iget=get;r.iset=set;
-        r.input=new Input("Number",Integer.toString(get.getAsInt()),6,v->{
+        r.input=new Input("Number",Integer.toString(get.getAsInt()),Math.max(6,Integer.toString(max).length()),v->{
             var number=net.shoresmp.core.SettingValues.integer(v,min,max);
             if(number.isPresent()&&number.getAsInt()!=get.getAsInt()){set.accept(number.getAsInt());ShoreClient.config.save();}
         });
         r.input.commitOnBlur=true;
-        r.input.validation=v->net.shoresmp.core.SettingValues.integer(v,min,max).isPresent()?"":"Enter "+min+"â€“"+max+suffix;
+        r.input.validation=v->net.shoresmp.core.SettingValues.integer(v,min,max).isPresent()?"":"Enter "+min+"–"+max+suffix;
         r.input.currentValue=()->Integer.toString(get.getAsInt());
         return r;
     }
@@ -751,10 +801,17 @@ public final class ShoreScreen extends Screen {
     private static final float FS=12.5f,ROW_H=34;
     private final Set<String> collapsed=new HashSet<>();
     private static final Map<String,String[]> RESET_FIELDS=Map.ofEntries(
+        Map.entry("performance",new String[]{"hudItemIcons"}),
+        Map.entry("blockoverlay",new String[]{"blockColor","blockOpacity","outlineWidth","blockInfo"}),
+        Map.entry("betterf3",new String[]{"debugCoordinates","debugTarget","debugMemory"}),
+        Map.entry("guitweaks",new String[]{"inventoryOpacity","guiNoDim"}),
+        Map.entry("hitboxes",new String[]{"hitboxColor","hitboxPlayersOnly","hitboxRange"}),
+        Map.entry("totemtweaks",new String[]{"heldTotemSize","heldTotemOpacity","popTotemSize","popTotemOpacity"}),
+        Map.entry("waypoints",new String[]{"waypointColor","waypointRange","waypointScale"}),
         Map.entry("cps",new String[]{"cpsRight"}),Map.entry("keystrokes",new String[]{"keystrokesMouse","keystrokesSpace","keystrokesAccent"}),
         Map.entry("items",new String[]{"itemsTotem","itemsPearl","itemsGapple","itemsCrystal","itemsArrow","itemsXp","itemsShowZero","itemsCustom"}),Map.entry("target",new String[]{"targetDistance"}),Map.entry("totempops",new String[]{"totemPopsSelf"}),Map.entry("togglesprint",new String[]{"toggleSneak","toggleSprintHud"}),
         Map.entry("stacking",new String[]{"stackStyle","stackLookback"}),Map.entry("timestamps",new String[]{"timestamps24","timestampSeconds"}),
-        Map.entry("fullbright",new String[]{"fullbrightStrength"}),Map.entry("mentions",new String[]{"mentionSound","highlightWords","mentionColor","mentionCustomColor"}),Map.entry("chat",new String[]{"chatHistoryLimit","chatOpacity"}),
+        Map.entry("fullbright",new String[]{"fullbrightStrength"}),Map.entry("mentions",new String[]{"mentionSound","highlightWords","mentionColor","mentionCustomColor"}),Map.entry("chat",new String[]{"chatHistoryLimit","chatOpacity","chatHeads","chatHeadSize","chatHeadHat"}),
         Map.entry("mousetweaks",new String[]{"tweakRmb","tweakLmb","tweakShift","tweakWheel"}),Map.entry("shulker",new String[]{"shulkerMode","shulkerScale","shulkerBorderMode","shulkerBgOpacity","shulkerTitle","shulkerEmptySlots"}),
         Map.entry("zoom",new String[]{"zoomToggle","zoomLevel","zoomSensMode","zoomSensitivity","zoomCinematic","zoomScroll","zoomScrollSpeed","zoomSmooth"}),
         Map.entry("durability",new String[]{"durabilityThreshold","durabilitySound","durabilityChat"}),Map.entry("deaths",new String[]{"deathAnnounce"}),
