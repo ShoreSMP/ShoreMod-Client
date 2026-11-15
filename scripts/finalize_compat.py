@@ -21,32 +21,56 @@ code=file.read_text(encoding='utf-8')
 if layer:
  assert len(layer)==1,layer
  layer_selector='L'+renderer.replace('.','/')+';'+layer[0][0]+':'+layer[0][1]
- layer_type=layer[0][1][1:-1]
 else:
- bytecode=subprocess.run(['javap','-p','-c','-classpath',classpath,renderer],capture_output=True,text=True,check=True).stdout
- invokes=re.findall(r'// (?:InterfaceMethod|Method) ([\w/$]+)\.([\w$]+):(\([^)]*\)L[^;]*(?:RenderLayer|RenderType);)',bytecode)
- invokes=[i for i in invokes if i[1] in ('renderType','getLayer')]
- assert len(set(invokes))==1,(renderer,invokes,bytecode)
- owner,name,descriptor=invokes[0]
- layer_selector='L'+owner+';'+name+descriptor
- layer_type=descriptor.rsplit(')L',1)[1][:-1]
- code=code.replace('value="FIELD",target=SHORE_CRYSTAL_LAYER','value="INVOKE",target=SHORE_CRYSTAL_LAYER')
+ textures=[(re.search(r'([\w$]+);$',h)[1],d) for h,d in entries if 'static final' in h and (d.endswith('/Identifier;') or d.endswith('/ResourceLocation;'))]
+ assert len(textures)==1,(renderer,textures,dump)
+ texture_name,texture_descriptor=textures[0]
+ layer_selector='L'+renderer.replace('.','/')+';'+texture_name+':'+texture_descriptor
+ identifier=texture_descriptor[1:-1].replace('/','.')
+ simple=identifier.rsplit('.',1)[-1]
+ code=re.sub(r'import [\w.]+\.Render(?:Layer|Type);','',code)
+ code=code.replace('import org.spongepowered.asm.mixin.Mixin;','import org.spongepowered.asm.mixin.Mixin;\nimport '+identifier+';')
+ code=re.sub(r'private [\w.]+ shore\$crystalLayer\([\w.]+ layer\)',lambda m:'private '+simple+' shore$crystalLayer('+simple+' layer)',code)
+ code=code.replace('ShoreCrystals.layer(layer)','ShoreCrystals.texture(layer)')
+ # Modern model submission accepts a texture; select translucency in the model's layer resolver.
+ model_dump=subprocess.run(['javap','-p','-classpath',classpath,'net.minecraft.client.model.Model'],capture_output=True,text=True,check=True).stdout
+ choices=re.findall(r'public (?:final )?([\w.]*RenderType) ([\w$]+)\(([\w.]*(?:Identifier|ResourceLocation))\);',model_dump)
+ assert len(choices)==1,('Cannot resolve model texture layer',choices,model_dump)
+ render_type,method,identifier=choices[0]
+ factory=render_type.rsplit('.',1)[0]+'.RenderTypes'
+ generated="""package net.shoresmp.fabric.mixin;
+import net.minecraft.client.model.Model;
+import IDENTIFIER;
+import RENDER_TYPE;
+import FACTORY;
+import net.shoresmp.fabric.ShoreClient;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.injection.*;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+@Mixin(Model.class)
+public abstract class CrystalModelLayerMixin {
+ @Inject(method="METHOD",at=@At("RETURN"),cancellable=true)
+ private void shore$crystalBlend(ID texture,CallbackInfoReturnable<TYPE> cir){
+  if(ShoreClient.config!=null&&ShoreClient.config.customCrystals&&texture.toString().equals("shoremod:custom_end_crystal"))cir.setReturnValue(RenderTypes.entityTranslucent(texture));
+ }
+}
+""".replace('IDENTIFIER',identifier).replace('RENDER_TYPE',render_type).replace('FACTORY',factory).replace('METHOD',method).replace('ID',identifier.rsplit('.',1)[-1]).replace('TYPE',render_type.rsplit('.',1)[-1])
+ (root/'fabric/src/main/java/net/shoresmp/fabric/mixin/CrystalModelLayerMixin.java').write_text(generated,encoding='utf-8')
+ meta_file=root/'fabric/src/main/resources/shoremod.mixins.json'
+ meta=json.loads(meta_file.read_text());meta['client'].append('CrystalModelLayerMixin');meta_file.write_text(json.dumps(meta,indent=2))
+ crystal_file=root/'fabric/src/main/java/net/shoresmp/fabric/ShoreCrystals.java'
+ crystal_code=crystal_file.read_text(encoding='utf-8')
+ crystal_code='\n'.join(line for line in crystal_code.splitlines() if not re.search(r'import [\w.]+\.Render(?:Layer|Type|Layers|Types);',line) and not ('public static ' in line and ' layer(' in line))
+ # Remove the unused legacy render-layer wrapper and its imports.
+ crystal_code=re.sub(r'^import [\w.]+\.Render(?:Layer|Type|Layers|Types);\s*$', '',crystal_code,flags=re.M)
+ crystal_file.write_text(crystal_code,encoding='utf-8')
+ preflight=root/'fabric/src/main/java/net/shoresmp/fabric/ShoreCompatPreflight.java'
+ if preflight.exists():preflight.write_text(preflight.read_text().replace('for(String name:new String[]{','for(String name:new String[]{"net.minecraft.client.model.Model",'),encoding='utf-8')
 values={'SHORE_CRYSTAL_RENDER':render[0][0]+render[0][1],'SHORE_CRYSTAL_STATE':update[0][0]+update[0][1],'SHORE_CRYSTAL_LAYER':layer_selector,'SHORE_CRYSTAL_BOB':bob[0]}
 for key,value in values.items():
  code,n=re.subn(r'(String '+key+r'=)"[^"]*"',lambda m:m[1]+json.dumps(value),code)
  assert n==1,key
-layer_class=layer_type.replace('/','.')
-code=re.sub(r'import [\w.]+\.Render(?:Layer|Type);',lambda m:'import '+layer_class+';',code)
-code=re.sub(r'\bRenderLayer\b',layer_class.rsplit('.',1)[-1],code)
 file.write_text(code,encoding='utf-8')
-if target.startswith('26.'):
- file=root/'fabric/src/main/java/net/shoresmp/fabric/ShoreCrystals.java'
- code=file.read_text(encoding='utf-8')
- factory=layer_class.rsplit('.',1)[0]+'.RenderTypes'
- code=re.sub(r'import [\w.]+\.Render(?:Layer|Type);',lambda m:'import '+layer_class+';',code)
- code=re.sub(r'import [\w.]+\.Render(?:Layers|Types);',lambda m:'import '+factory+';',code)
- code=re.sub(r'\bRenderLayer\b','RenderType',code);code=re.sub(r'\bRenderLayers\b','RenderTypes',code)
- file.write_text(code,encoding='utf-8')
 print('Resolved custom crystal hooks:',values)
 
 if not target.startswith('26.'):

@@ -81,7 +81,7 @@ public final class ShoreClient implements ClientModInitializer {
             ShoreTools.joined(client);
         });
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
-            sessionEpoch++;
+            sessionEpoch++;ShoreMotionBlur.clear();ShoreCrystals.reload();
             pendingScreen.set(null);latestUpdate=null;announcedUpdate="";
             backendConfirmed=false;payments.cancel(false); roster.clear(); lastRosterAt = 0;
             // Keep the ring briefly: disconnect screen/transfer reasons may arrive after this event.
@@ -110,7 +110,7 @@ public final class ShoreClient implements ClientModInitializer {
         });
         ClientLifecycleEvents.CLIENT_STARTED.register(client -> originalChatOpacity = client.options.getTextBackgroundOpacity().getValue());
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
-            recorder.close();
+            ShoreMotionBlur.clear();ShoreCrystals.reload();recorder.close();
             ShoreTools.restoreZoomInput(client);
             if (originalChatOpacity != null) client.options.getTextBackgroundOpacity().setValue(originalChatOpacity);
         });

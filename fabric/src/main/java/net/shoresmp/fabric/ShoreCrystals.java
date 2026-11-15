@@ -14,7 +14,8 @@ public final class ShoreCrystals {
  private static long rainbowAt;private static int rainbowRgb;
  private ShoreCrystals(){}
  public static boolean ready(){return texture!=null;}
- public static RenderLayer layer(RenderLayer vanilla){
+ public static RenderLayer layer(RenderLayer vanilla){return texture(SOURCE).equals(CUSTOM)?RenderLayers.entityTranslucent(CUSTOM):vanilla;}
+ public static Identifier texture(Identifier vanilla){
   var c=ShoreClient.config;if(c==null||!c.customCrystals)return vanilla;
   try{
    int color=c.crystalColor;
@@ -34,8 +35,8 @@ public final class ShoreCrystals {
     else texture.setImage(image);
     texture.upload();key=wanted;
    }
-   return RenderLayers.entityTranslucent(CUSTOM);
+   return CUSTOM;
   }catch(Exception e){ShoreClient.LOG.warn("Could not prepare custom crystal texture",e);return vanilla;}
  }
- public static void reload(){if(original!=null){original.close();original=null;}texture=null;key=0;}
+ public static void reload(){if(texture!=null)MinecraftClient.getInstance().getTextureManager().destroyTexture(CUSTOM);if(original!=null){original.close();original=null;}texture=null;key=0;}
 }

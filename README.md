@@ -2,7 +2,7 @@
 
 Fabric client mod for Minecraft **1.21.5, 1.21.8, 1.21.10, 1.21.11, 26.1, 26.2, and 26.3**.
 
-[Download ShoreMod 1.3.3](https://github.com/ShoreSMP/ShoreMod-Client/releases/download/v1.3.3/ShoreMod-1.3.3.jar) | [All releases](https://github.com/ShoreSMP/ShoreMod-Client/releases)
+[Download ShoreMod 1.4.0](https://github.com/ShoreSMP/ShoreMod-Client/releases/download/v1.4.0/ShoreMod-1.4.0.jar) | [All releases](https://github.com/ShoreSMP/ShoreMod-Client/releases)
 
 ## Install
 
@@ -17,15 +17,22 @@ Open settings with **Right Shift** or **/shore**. New visual modules are optiona
 
 ## Features
 
+- GPU frame-history motion blur with strength, samples, movement-only mode, FPS protection, capture rate and a GPU memory budget. Off by default.
+- Custom end crystal colors, rainbow/ghost styles, opacity, visual size, animation speed, bobbing, base and beam controls.
+- World day counter with label, offset and in-game time.
+- Integrated shulker tooltips with formatted lore, full-slot expansion (Left Alt + Left Shift), and Left Control locking for item inspection.
+- Waypoint quick menu on **M**, `/waypoint add <name> [x y z]`, tracking, offscreen indicators, editing/colors, coordinate copying and optional death markers.
+- Darker, single-column settings with configurable panel/HUD/inventory colors, padding and spacing. Updates panel removed.
+
 - Low-overhead preset: disables recording and 3D HUD item icons; repeated nameplate text is cached.
 - Configurable block outline, compact F3 panel, inventory opacity, and Minecraft GUI size.
 - Colored hitboxes for nearby visible entities, capped at 32.
 - Lightweight held-totem and pop sprites with independent size and opacity.
 - Local waypoints with names, colors, coordinates, range, and separate server/dimension scopes.
-- Chat heads with size and outer-layer controls, plus existing chat history, stacking, timestamps, and mentions. Heads appear on new messages with recognized player-name prefixes and use Minecraft-managed skins.
+- Chat heads with size and outer-layer controls, plus existing chat history, stacking, timestamps, and mentions. Heads appear beside recognized sender names, including multiline server headers, and use Minecraft-managed skins.
 - Existing HUD customization, fullbright, zoom, crosshair painter/imports, inventory tools, and optional local clip recorder.
 
-Recording is disabled on the first upgrade to 1.3.3. Enabling it explicitly exits performance mode. Exact FPS gains depend on hardware, recording settings, and other mods.
+Recording is disabled on the first upgrade to 1.4.0. Enabling it explicitly exits performance mode. Exact FPS gains depend on hardware, recording settings, and other mods.
 
 ## Build
 
