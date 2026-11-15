@@ -327,6 +327,8 @@ jobs:
 
           Chat heads recognize more formatted sender headers, including rank prefixes, timestamps, Unicode separators, and tab-list nicknames. Head spacing follows the configured size. Players must be present in the client player list for skin lookup.
 
+          Your own Shore logo appears in tab and on your nameplate when enabled, even without the companion server plugin. Other players still require server presence data.
+
           One universal JAR supports Minecraft 1.21.5, 1.21.8, 1.21.10, 1.21.11, 26.1, 26.2, and 26.3. Replace the old ShoreMod JAR. Use matching Fabric API, Fabric Loader 0.19.2+ and Java 21 for listed 1.21.x versions, or Loader 0.20.1+ and Java 25 for 26.x.
 
           Release publication is gated on seven-version compilation/startup, universal selection, and baseline in-game UI regression checks. Includes tests for component-aware shulker grouping, lore preservation, formatted chat sender detection, and visible-line skin linking.
