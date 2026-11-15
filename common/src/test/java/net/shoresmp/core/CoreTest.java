@@ -12,6 +12,15 @@ public final class CoreTest {
     private static int checks;
     private static void check(boolean value, String message) { checks++; if (!value) throw new AssertionError(message); }
     public static void main(String[] args) throws Exception {
+        var aliases=List.of("Alex","Nolan","BuilderNick");
+        for(String header:List.of("<Alex> hello","[Royal] Alex: hello","[Royal] Alex \u00bb hello","[Royal] Alex \u276f hello","[Royal] Alex \u2192 hello","[Royal] Alex \u279c hello","[Royal] Alex \u2022 hello","[12:30] [Royal] Alex: hello","VIP | Alex: hello","Alex -> hello","\u00a7b[Royal] \u00a7fAlex \u27a4 hello"))
+            check("Alex".equals(ChatSenders.sender(header,aliases)),"formatted sender: "+header);
+        check("BuilderNick".equals(ChatSenders.sender("[Captain] ~BuilderNick: hi",aliases)),"nickname header");
+        check("BuilderNick".equals(ChatSenders.displayAlias("\u00a76[Captain] ~BuilderNick")),"ranked tab nickname alias");
+        check(ChatSenders.sender("Server: Alex: hello",aliases)==null,"system body cannot impersonate sender");
+        check(ChatSenders.sender("Unknown: Nolan said hi",aliases)==null,"mentioned player is not sender");
+        check(ChatSenders.sender("NotAlex: hello",aliases)==null,"sender names require token boundaries");
+        check(ChatSenders.sender("",aliases)==null,"empty messages are safe");
         for(int gui:new int[]{1,2,3,4,6}){
             float normal=HudScale.guiUnits(1080,gui,100,100)*gui;
             float smaller=HudScale.guiUnits(1080,gui,50,100)*gui;
@@ -113,7 +122,7 @@ public final class CoreTest {
             try { Payments.amount(invalid); throw new AssertionError("amount accepted"); } catch (IllegalArgumentException expected) { checks++; }
         }
         var triggers = List.of("blacklisted modifications", "bug abusing", "banned");
-        check(PunishmentMatcher.matches("§cBLACKLISTED MODIFICATIONS", triggers), "formatted trigger");
+        check(PunishmentMatcher.matches("cBLACKLISTED MODIFICATIONS", triggers), "formatted trigger");
         check(!PunishmentMatcher.matches("You are unbanned", triggers), "word boundaries");
         var personalReasons=List.of("blacklisted modifications","bug abusing","cheating","exploiting","banned");
         for(String message:List.of(
@@ -173,4 +182,5 @@ public final class CoreTest {
         System.out.println("PASS: " + checks + " core checks");
     }
 }
+
 

@@ -234,6 +234,16 @@ final class ShoreSelfTest {
                 w.setBlockState(net.minecraft.util.math.BlockPos.ofFloored(pos),Blocks.STONE.getDefaultState());
                 var side=pos.add(look.z*1.5,-1,-look.x*1.5);w.spawnEntity(new net.minecraft.entity.decoration.ArmorStandEntity(w,side.x,side.y,side.z));
             });
+            String playerName=c.player.getName().getString();
+            for(String header:java.util.List.of("[Royal] "+playerName+" \u276f hello","[12:30] [Captain] "+playerName+" \u2192 hello","<"+playerName+"> hello")){
+                var decorated=ShoreChatHeads.decorate(net.minecraft.text.Text.literal(header));
+                log(verdict(decorated.getString().startsWith("   "))+" chat head reserves space for formatted sender "+header);
+                c.inGameHud.getChatHud().addMessage(net.minecraft.text.Text.literal(header));
+                try{
+                    var field=ShoreChatHeads.class.getDeclaredField("LINES");field.setAccessible(true);
+                    log(verdict(!((java.util.Map<?,?>)field.get(null)).isEmpty())+" chat head skin is linked to a wrapped visible line");
+                }catch(Exception e){throw new IllegalStateException(e);}
+            }
             var message=net.minecraft.text.Text.literal("<"+c.player.getName().getString()+"> Chat heads test");
             log(verdict(ShoreChatHeads.decorate(message).getString().startsWith("   "))+" chat heads identify the sender and reserve space");
             c.inGameHud.getChatHud().addMessage(message);

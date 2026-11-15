@@ -5,19 +5,30 @@ import net.minecraft.client.gl.RenderPipelines;
 import net.minecraft.entity.player.SkinTextures;
 import net.minecraft.text.*;
 import java.util.*;
-import java.util.regex.*;
+import net.shoresmp.core.ChatSenders;
 /** Uses skins already managed by Minecraft; never contacts a third-party avatar service. */
 public final class ShoreChatHeads {
  private static final Map<Text,SkinTextures> MESSAGES=new WeakHashMap<>();
  private static final Map<OrderedText,SkinTextures> LINES=new WeakHashMap<>();
- private static final Pattern SENDER=Pattern.compile("(?<![A-Za-z0-9_])([A-Za-z0-9_]{1,16})\\s*[:>»]");
  private ShoreChatHeads(){}
  public static Text decorate(Text text){
   if(ShoreClient.config==null||!ShoreClient.config.chatHeads)return text;
   var mc=MinecraftClient.getInstance();if(mc.getNetworkHandler()==null)return text;
-  String s=text.getString();var matcher=SENDER.matcher(s.substring(0,Math.min(96,s.length())));
-  while(matcher.find())for(var entry:mc.getNetworkHandler().getPlayerList())if(entry.getProfile().name().equalsIgnoreCase(matcher.group(1))){
-   Text result=Text.literal("   ").append(text);MESSAGES.put(result,entry.getSkinTextures());return result;
+  var entries=new TreeMap<String,net.minecraft.client.network.PlayerListEntry>(String.CASE_INSENSITIVE_ORDER);
+  for(var entry:mc.getNetworkHandler().getPlayerList()){
+   entries.put(entry.getProfile().name(),entry);
+   if(entry.getDisplayName()!=null){
+    String alias=ChatSenders.displayAlias(entry.getDisplayName().getString());
+    if(alias!=null)entries.putIfAbsent(alias,entry);
+   }
+  }
+  // Real account names take priority over a nickname belonging to another player.
+  for(var entry:mc.getNetworkHandler().getPlayerList())entries.put(entry.getProfile().name(),entry);
+  String sender=ChatSenders.sender(text.getString(),entries.keySet());
+  if(sender!=null){
+   var entry=entries.get(sender);
+   int spaces=Math.max(1,(int)Math.ceil((ShoreClient.config.chatHeadSize+2)/(double)Math.max(1,mc.textRenderer.getWidth(" "))));
+   Text result=Text.literal(" ".repeat(spaces)).append(text);MESSAGES.put(result,entry.getSkinTextures());return result;
   }
   return text;
  }
