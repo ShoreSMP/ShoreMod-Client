@@ -39,6 +39,7 @@ jobs:
           set +e
           xvfb-run -a timeout 240 bash gradlew :fabric:runClient -PcompatSmoke --console=plain >compat-smoke.log 2>&1
           result=$?
+          grep -n -B 8 -A 25 -E "Caused by:|Exception|SHORE_GPU|ERROR|Error:" compat-smoke.log || true
           tail -90 compat-smoke.log
           test "$result" = 0 && grep -q SHORE_COMPAT_SMOKE_PASS compat-smoke.log && grep -q SHORE_CUSTOM_SETTINGS_PASS compat-smoke.log
       - uses: actions/upload-artifact@v4
@@ -94,6 +95,7 @@ jobs:
           set +e
           xvfb-run -a timeout 240 bash gradlew :fabric:runClient -PcompatSmoke --console=plain >compat-smoke.log 2>&1
           result=$?
+          grep -n -B 8 -A 25 -E "Caused by:|Exception|SHORE_GPU|ERROR|Error:" compat-smoke.log || true
           tail -90 compat-smoke.log
           test "$result" = 0 && grep -q SHORE_COMPAT_SMOKE_PASS compat-smoke.log && grep -q SHORE_CUSTOM_SETTINGS_PASS compat-smoke.log
       - uses: actions/upload-artifact@v4
@@ -173,6 +175,7 @@ jobs:
           set +e
           xvfb-run -a timeout 240 gradle :fabric:runClient -PcompatSmoke --console=plain >compat-smoke.log 2>&1
           result=$?
+          grep -n -B 8 -A 25 -E "Caused by:|Exception|SHORE_GPU|ERROR|Error:" compat-smoke.log || true
           tail -90 compat-smoke.log
           test "$result" = 0 && grep -q SHORE_COMPAT_SMOKE_PASS compat-smoke.log
       - uses: actions/upload-artifact@v4

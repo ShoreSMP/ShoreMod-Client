@@ -41,7 +41,7 @@ public final class ShoreMotionBlur {
  }
  private static void initialize(Object source)throws Exception{
   device=RenderSystem.getDevice();
-  create=Arrays.stream(device.getClass().getMethods()).filter(m->m.getName().equals("createTexture")&&(m.getParameterCount()==6||m.getParameterCount()==7)&&m.getParameterTypes()[0]==String.class).findFirst().orElseThrow();
+  create=Arrays.stream(device.getClass().getMethods()).filter(m->m.getName().equals("createTexture")&&(m.getParameterCount()>=5&&m.getParameterCount()<=7)&&(m.getParameterTypes()[0]==String.class||Supplier.class.isAssignableFrom(m.getParameterTypes()[0]))).findFirst().orElseThrow();
   create.setAccessible(true);view=method(device.getClass(),"createTextureView",1);encoder=method(device.getClass(),"createCommandEncoder",0);
   Object command=encoder.invoke(device);copy=method(command.getClass(),"copyTextureToTexture",9);
   if(copy==null)throw new IllegalStateException("GPU texture copies unavailable");
@@ -52,13 +52,21 @@ public final class ShoreMotionBlur {
    }
   }
  }
+ private static Object allocate(String label,int usage,Object format,int width,int height)throws Exception{
+  Object name=create.getParameterTypes()[0]==String.class?label:(Supplier<String>)()->label;
+  return switch(create.getParameterCount()){
+   case 5->create.invoke(device,name,format,width,height,1);
+   case 6->create.invoke(device,name,usage,format,width,height,1);
+   default->create.invoke(device,name,usage,format,width,height,1,1);
+  };
+ }
  public static void verifyBackend(){
   var mc=MinecraftClient.getInstance();Object source=mc.getFramebuffer().getColorAttachment();if(source==null)throw new IllegalStateException("Missing framebuffer");
   Object texture=null;HistoryTexture wrapped=null;
   try{
    initialize(source);Object format=method(source.getClass(),"getFormat",0).invoke(source);int usage=0;
    for(String flag:new String[]{"USAGE_COPY_DST","USAGE_COPY_SRC","USAGE_TEXTURE_BINDING"})for(Class<?> t=source.getClass();t!=null;t=t.getSuperclass())try{usage|=t.getField(flag).getInt(null);break;}catch(NoSuchFieldException ignored){}
-   texture=create.getParameterCount()==7?create.invoke(device,"ShoreMod history check",usage,format,16,16,1,1):create.invoke(device,"ShoreMod history check",usage,format,16,16,1);
+   texture=allocate("ShoreMod history check",usage,format,16,16);
    Object textureView=view==null?null:view.invoke(device,texture);
    wrapped=new HistoryTexture(texture,textureView,sampler);
    copy.invoke(encoder.invoke(device),source,texture,0,0,0,0,0,16,16);
@@ -95,7 +103,7 @@ public final class ShoreMotionBlur {
      for(Class<?> t=source.getClass();t!=null;t=t.getSuperclass())try{usage|=t.getField(flag).getInt(null);break;}catch(NoSuchFieldException ignored){}
     }
     for(int i=0;i<capacity;i++){
-     Object texture=create.getParameterCount()==7?create.invoke(device,"ShoreMod motion history "+i,usage,format,w,h,1,1):create.invoke(device,"ShoreMod motion history "+i,usage,format,w,h,1);
+     Object texture=allocate("ShoreMod motion history "+i,usage,format,w,h);
      Object textureView=view==null?null:view.invoke(device,texture);
      var wrapped=new HistoryTexture(texture,textureView,sampler);var id=Identifier.of("shoremod","motion_history_"+i);
      mc.getTextureManager().registerTexture(id,wrapped);frames.add(new Frame(id,wrapped,texture));

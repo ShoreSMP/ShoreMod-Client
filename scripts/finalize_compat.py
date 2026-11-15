@@ -15,14 +15,38 @@ render=[(re.search(r'([\w$]+)\(',h)[1],d) for h,d in entries if d.startswith('(L
 update=[(re.search(r'([\w$]+)\(',h)[1],d) for h,d in entries if 'EndCrystal' in d and '(L'+state+';' not in d and ';L'+state+';F)V' in d]
 layer=[(re.search(r'([\w$]+);$',h)[1],d) for h,d in entries if 'static final' in h and ('RenderLayer;' in d or 'RenderType;' in d)]
 bob=[re.search(r'([\w$]+)\(',h)[1] for h,d in entries if ' static ' in ' '+h and d=='(F)F']
-assert len(render)==1 and len(update)==1 and len(layer)==1 and len(bob)==1,(renderer,render,update,layer,bob,dump)
+assert len(render)==1 and len(update)==1 and len(bob)==1,(renderer,render,update,layer,bob,dump)
 file=root/'fabric/src/main/java/net/shoresmp/fabric/mixin/CrystalMixin.java'
 code=file.read_text(encoding='utf-8')
-values={'SHORE_CRYSTAL_RENDER':render[0][0]+render[0][1],'SHORE_CRYSTAL_STATE':update[0][0]+update[0][1],'SHORE_CRYSTAL_LAYER':'L'+renderer.replace('.','/')+';'+layer[0][0]+':'+layer[0][1],'SHORE_CRYSTAL_BOB':bob[0]}
+if layer:
+ assert len(layer)==1,layer
+ layer_selector='L'+renderer.replace('.','/')+';'+layer[0][0]+':'+layer[0][1]
+ layer_type=layer[0][1][1:-1]
+else:
+ bytecode=subprocess.run(['javap','-p','-c','-classpath',classpath,renderer],capture_output=True,text=True,check=True).stdout
+ invokes=re.findall(r'// (?:InterfaceMethod|Method) ([\w/$]+)\.([\w$]+):(\([^)]*\)L[^;]*(?:RenderLayer|RenderType);)',bytecode)
+ invokes=[i for i in invokes if i[1] in ('renderType','getLayer')]
+ assert len(set(invokes))==1,(renderer,invokes,bytecode)
+ owner,name,descriptor=invokes[0]
+ layer_selector='L'+owner+';'+name+descriptor
+ layer_type=descriptor.rsplit(')L',1)[1][:-1]
+ code=code.replace('value="FIELD",target=SHORE_CRYSTAL_LAYER','value="INVOKE",target=SHORE_CRYSTAL_LAYER')
+values={'SHORE_CRYSTAL_RENDER':render[0][0]+render[0][1],'SHORE_CRYSTAL_STATE':update[0][0]+update[0][1],'SHORE_CRYSTAL_LAYER':layer_selector,'SHORE_CRYSTAL_BOB':bob[0]}
 for key,value in values.items():
  code,n=re.subn(r'(String '+key+r'=)"[^"]*"',lambda m:m[1]+json.dumps(value),code)
  assert n==1,key
+layer_class=layer_type.replace('/','.')
+code=re.sub(r'import [\w.]+\.Render(?:Layer|Type);',lambda m:'import '+layer_class+';',code)
+code=re.sub(r'\bRenderLayer\b',layer_class.rsplit('.',1)[-1],code)
 file.write_text(code,encoding='utf-8')
+if target.startswith('26.'):
+ file=root/'fabric/src/main/java/net/shoresmp/fabric/ShoreCrystals.java'
+ code=file.read_text(encoding='utf-8')
+ factory=layer_class.rsplit('.',1)[0]+'.RenderTypes'
+ code=re.sub(r'import [\w.]+\.Render(?:Layer|Type);',lambda m:'import '+layer_class+';',code)
+ code=re.sub(r'import [\w.]+\.Render(?:Layers|Types);',lambda m:'import '+factory+';',code)
+ code=re.sub(r'\bRenderLayer\b','RenderType',code);code=re.sub(r'\bRenderLayers\b','RenderTypes',code)
+ file.write_text(code,encoding='utf-8')
 print('Resolved custom crystal hooks:',values)
 
 if not target.startswith('26.'):

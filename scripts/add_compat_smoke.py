@@ -20,12 +20,14 @@ public final class ShoreCompatSmoke {{
   net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client->{{
    if(started==0||done)return;
    if(!({current} instanceof ShoreScreen)&&!({current} instanceof CrosshairEditorScreen)&&{overlay}==null&&System.nanoTime()-lastOpen>1_000_000_000L){{lastOpen=System.nanoTime();ShoreClient.openNextTick(()->new ShoreScreen({current}));}}
-   if({current} instanceof CrosshairEditorScreen&&{overlay}==null){{frames++;if(frames>=110){{done=true;ShoreClient.LOG.info("SHORE_COMPAT_SMOKE_PASS target={target}");{stop};}}}}
+   if({current} instanceof CrosshairEditorScreen&&{overlay}==null){{frames++;if(frames>=150){{done=true;ShoreClient.LOG.info("SHORE_COMPAT_SMOKE_PASS target={target}");{stop};}}}}
    if({current} instanceof ShoreScreen&&{overlay}==null){{
     if(frames>=20&&stage==0){{((ShoreScreen){current}).showModule("motionblur");ShoreMotionBlur.verifyBackend();stage++;}}
     if(frames>=40&&stage==1){{((ShoreScreen){current}).showModule("crystals");stage++;}}
-    if(frames>=60&&stage==2){{((ShoreScreen){current}).showPage("GENERAL");stage++;}}
-    if(frames>=80&&stage==3){{ShoreClient.openNextTick(()->new CrosshairEditorScreen(null));stage++;}}
+    if(frames>=60&&stage==2){{((ShoreScreen){current}).showModule("days");stage++;}}
+    if(frames>=80&&stage==3){{((ShoreScreen){current}).showModule("waypoints");stage++;}}
+    if(frames>=100&&stage==4){{((ShoreScreen){current}).showPage("GENERAL");stage++;}}
+    if(frames>=120&&stage==5){{ShoreClient.openNextTick(()->new CrosshairEditorScreen(null));stage++;}}
    }}
    if(!done&&System.nanoTime()-started>150_000_000_000L){{done=true;ShoreClient.LOG.error("SHORE_COMPAT_SMOKE_FAIL target={target} screen={{}} overlay={{}} frames={{}}",{current},{overlay},frames);{stop};}}
   }});
