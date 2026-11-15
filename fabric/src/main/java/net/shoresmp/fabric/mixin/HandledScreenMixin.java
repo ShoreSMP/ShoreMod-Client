@@ -222,6 +222,18 @@ public abstract class HandledScreenMixin extends Screen {
     }
 
     @Unique private boolean shore$reportedLore;
+    /** Copies preserve the inventory; components keep renamed/enchanted items separate. */
+    @Unique private static List<ItemStack> shore$previewItems(List<ItemStack> items,boolean full){
+        if(full)return items;
+        var grouped=new ArrayList<ItemStack>();
+        for(var item:items){
+            if(item.isEmpty())continue;
+            ItemStack match=null;
+            for(var existing:grouped)if(ItemStack.areItemsAndComponentsEqual(existing,item)){match=existing;break;}
+            if(match==null)grouped.add(item.copy());else match.increment(item.getCount());
+        }
+        return grouped;
+    }
     // ------------------------------------------------------------------ shulker preview
     /** Hovering a shulker box (holding Shift, or always) shows its normal tooltip text above the 27-slot preview. */
     @Inject(method="drawMouseoverTooltip",at=@At("HEAD"),cancellable=true)
@@ -237,18 +249,32 @@ public abstract class HandledScreenMixin extends Screen {
         ci.cancel();
         var items=net.minecraft.util.collection.DefaultedList.ofSize(27,ItemStack.EMPTY);
         stack.getOrDefault(DataComponentTypes.CONTAINER,ContainerComponent.DEFAULT).copyTo(items);
+        long window=MinecraftClient.getInstance().getWindow().getHandle();
+        boolean shift=GLFW.glfwGetKey(window,GLFW.GLFW_KEY_LEFT_SHIFT)==GLFW.GLFW_PRESS||GLFW.glfwGetKey(window,GLFW.GLFW_KEY_RIGHT_SHIFT)==GLFW.GLFW_PRESS;
+        boolean alt=GLFW.glfwGetKey(window,GLFW.GLFW_KEY_LEFT_ALT)==GLFW.GLFW_PRESS||GLFW.glfwGetKey(window,GLFW.GLFW_KEY_RIGHT_ALT)==GLFW.GLFW_PRESS;
+        boolean full=shift&&alt;
+        var preview=shore$previewItems(items,full);
+        int occupied=0;for(var item:items)if(!item.isEmpty())occupied++;
         // Keep the complete vanilla/mod-provided tooltip, including styled lore.
         // The title toggle hides only the name; it must never hide lore or attributes.
         float sc=c.shulkerScale/100f;
-        var normal=Screen.getTooltipFromItem(MinecraftClient.getInstance(),stack);
+        var tooltipStack=stack.copy();
+        tooltipStack.remove(DataComponentTypes.CONTAINER); // Grid replaces vanilla's contents summary, never lore.
+        var normal=Screen.getTooltipFromItem(MinecraftClient.getInstance(),tooltipStack);
         var lines=new ArrayList<net.minecraft.text.OrderedText>();
         int maxTextWidth=Math.max(40,(int)((width-12)/sc)-12);
         for(int i=c.shulkerTitle?0:Math.min(1,normal.size());i<normal.size();i++)
             lines.addAll(textRenderer.wrapLines(normal.get(i),maxTextWidth));
+        lines.addAll(textRenderer.wrapLines(Text.literal("Contains "+occupied+" stack(s)").withColor(0xAAAAAA),maxTextWidth));
+        lines.addAll(textRenderer.wrapLines(Text.literal("Alt+Shift: ").withColor(0xFFAA00).append(Text.literal(full?"viewing full contents":"view full contents").withColor(0xFFFFFF)),maxTextWidth));
         int lineH=textRenderer.fontHeight+1,textH=lines.isEmpty()?0:lines.size()*lineH+4;
-        int pw=9*18+10;
+        int columns=full?9:Math.max(1,Math.min(9,preview.size()));
+        int rows=full?3:Math.max(1,(preview.size()+8)/9);
+        int gridW=columns*18+8,gridH=rows*18+8;
+        int pw=gridW;
         for(var line:lines)pw=Math.max(pw,textRenderer.getWidth(line)+12);
-        int ph=3*18+10+textH;
+        int textBottom=textH+6,gridY=textBottom+3;
+        int ph=gridY+gridH;
         sc=Math.min(sc,Math.min((width-8)/(float)pw,(height-8)/(float)ph));
         float sw=pw*sc,sh=ph*sc;
         float x=mx+12,y=my-12;
@@ -270,15 +296,25 @@ public abstract class HandledScreenMixin extends Screen {
         };
         int bg=(Math.round(c.shulkerBgOpacity*2.55f)<<24)|0x101216;
         var m=ctx.getMatrices();m.pushMatrix();m.translate(x,y);m.scale(sc,sc);
-        if(border!=0){ctx.fill(1,0,pw-1,ph,border);ctx.fill(0,1,pw,ph-1,border);}
-        ctx.fill(2,1,pw-2,ph-1,bg);ctx.fill(1,2,pw-1,ph-2,bg);
+        // Vanilla-style text tooltip and a separate compact inventory panel underneath.
+        if(border!=0){ctx.fill(1,0,pw-1,textBottom,border);ctx.fill(0,1,pw,textBottom-1,border);}
+        ctx.fill(2,1,pw-2,textBottom-1,bg);ctx.fill(1,2,pw-1,textBottom-2,bg);
         for(int i=0;i<lines.size();i++)ctx.drawTextWithShadow(textRenderer,lines.get(i),6,5+i*lineH,0xFFFFFFFF);
-        for(int i=0;i<27;i++){
-            int sx=(pw-9*18)/2+i%9*18,sy=5+textH+i/9*18;
-            if(c.shulkerEmptySlots)ctx.fill(sx,sy,sx+17,sy+17,0x22FFFFFF);
-            ItemStack item=items.get(i);
+        int alpha=Math.round(c.shulkerBgOpacity*2.55f)<<24;
+        ctx.fill(0,gridY,gridW,ph,alpha|0x373737);
+        ctx.fill(1,gridY+1,gridW-1,ph-1,alpha|0xFFFFFF);
+        ctx.fill(2,gridY+2,gridW-2,ph-2,alpha|0xC6C6C6);
+        for(int i=0;i<rows*columns;i++){
+            int sx=4+i%columns*18,sy=gridY+4+i/columns*18;
+            ItemStack item=i<preview.size()?preview.get(i):ItemStack.EMPTY;
+            if(c.shulkerEmptySlots||!item.isEmpty()){
+                ctx.fill(sx-1,sy-1,sx+17,sy+17,alpha|0xFFFFFF);
+                ctx.fill(sx-1,sy-1,sx+16,sy+16,alpha|0x373737);
+                ctx.fill(sx,sy,sx+16,sy+16,alpha|0x8B8B8B);
+            }
             if(!item.isEmpty()){ctx.drawItem(item,sx,sy);ctx.drawStackOverlay(textRenderer,item,sx,sy);}
         }
         m.popMatrix();
     }
 }
+

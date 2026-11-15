@@ -274,6 +274,20 @@ final class ShoreSelfTest {
         });
     }
     private static void planShulkerLore(){
+        step(1,c->{
+            try{
+                var method=HandledScreen.class.getDeclaredMethod("shore$previewItems",java.util.List.class,boolean.class);method.setAccessible(true);
+                var a=new ItemStack(Items.DIAMOND,64);var b=new ItemStack(Items.DIAMOND,32);
+                var named=new ItemStack(Items.DIAMOND,1);named.set(net.minecraft.component.DataComponentTypes.CUSTOM_NAME,net.minecraft.text.Text.literal("Special"));
+                var source=net.minecraft.util.collection.DefaultedList.ofSize(27,ItemStack.EMPTY);
+                source.set(0,a);source.set(5,b);source.set(9,named);
+                var compact=(java.util.List<ItemStack>)method.invoke(null,source,false);
+                var full=(java.util.List<ItemStack>)method.invoke(null,source,true);
+                log(verdict(compact.size()==2&&compact.get(0).getCount()==96&&compact.get(1).getCount()==1)+" compact shulker merges matching items and preserves custom components");
+                log(verdict(a.getCount()==64&&b.getCount()==32&&full.size()==27&&full.get(5)==b&&full.get(1).isEmpty())+" full shulker preserves slot positions and source counts");
+                log(verdict(((java.util.List<?>)method.invoke(null,java.util.List.of(),false)).isEmpty())+" empty shulker preview is safe");
+            }catch(Exception e){throw new IllegalStateException(e);}
+        });
         step(2,c->{
             c.setScreen(null);var cfg=ShoreClient.config;cfg.shulkerPreview=true;cfg.shulkerMode=1;cfg.shulkerTitle=false;cfg.shulkerScale=150;
             var server=c.getServer();var id=c.player.getUuid();server.execute(()->{
