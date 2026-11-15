@@ -281,7 +281,17 @@ final class ShoreSelfTest {
             });
         });
         step(12,c->c.setScreen(new net.minecraft.client.gui.screen.ingame.InventoryScreen(c.player)));
-        step(4,c->{var screen=(HandledScreen<?>)c.currentScreen;sx=field(screen,"x");sy=field(screen,"y");moveTo(c,9);});
+        step(4,c->{
+            var screen=(HandledScreen<?>)c.currentScreen;sx=field(screen,"x");sy=field(screen,"y");var slot=slot(c,9);var window=c.getWindow();
+            GLFW.glfwSetCursorPos(window.getHandle(),(sx+slot.x+8)*window.getWidth()/(double)window.getScaledWidth(),(sy+slot.y+8)*window.getHeight()/(double)window.getScaledHeight());moveTo(c,9);
+        });
+        step(4,c->{
+            try{var f=HandledScreen.class.getDeclaredField("focusedSlot");f.setAccessible(true);var focused=(Slot)f.get(c.currentScreen);
+                log(verdict(focused!=null&&focused.id==9)+" shulker fixture is actually hovered (slot "+(focused==null?-1:focused.id)+")");
+            }catch(Exception e){throw new IllegalStateException(e);}
+            var colors=new java.util.HashSet<Integer>();for(var text:net.minecraft.client.gui.screen.Screen.getTooltipFromItem(c,slot(c,9).getStack()))text.asOrderedText().accept((index,style,point)->{if(style.getColor()!=null)colors.add(style.getColor().getRgb());return true;});
+            log("Synthetic shulker tooltip colors: "+colors+"; cursor empty="+c.player.currentScreenHandler.getCursorStack().isEmpty());
+        });
         step(10,c->{shot(c,"shulker_lore_title_off");measureShulkerLore(c,"with title off at 150%");});await(c->loreMeasured,0);
         step(2,c->{ShoreClient.config.shulkerTitle=true;ShoreClient.config.shulkerScale=50;});
         step(10,c->{shot(c,"shulker_lore_small");measureShulkerLore(c,"at 50%");});await(c->loreMeasured,0);
