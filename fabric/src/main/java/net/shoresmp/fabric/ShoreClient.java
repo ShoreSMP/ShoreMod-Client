@@ -104,7 +104,7 @@ public final class ShoreClient implements ClientModInitializer {
             ShoreTools.tick(client);
             ShorePvp.tick(client);
             ShoreVisuals.tick(client);
-            while(waypointKey.wasPressed()){var screen=new ShoreScreen(null);screen.showModule("waypoints");openNextTick(()->screen);}
+            while(waypointKey.wasPressed()){var waypointMenu=new ShoreScreen(null);waypointMenu.showModule("waypoints");openNextTick(()->waypointMenu);}
             if (config.extendedChat) client.options.getTextBackgroundOpacity().setValue(config.chatOpacity);
             else if (originalChatOpacity != null) client.options.getTextBackgroundOpacity().setValue(originalChatOpacity);
         });
