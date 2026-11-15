@@ -221,6 +221,7 @@ public abstract class HandledScreenMixin extends Screen {
         return true;
     }
 
+    @Unique private boolean shore$reportedLore;
     // ------------------------------------------------------------------ shulker preview
     /** Hovering a shulker box (holding Shift, or always) shows its normal tooltip text above the 27-slot preview. */
     @Inject(method="drawMouseoverTooltip",at=@At("HEAD"),cancellable=true)
@@ -254,6 +255,13 @@ public abstract class HandledScreenMixin extends Screen {
         if(x+sw>width-4)x=mx-12-sw;
         x=Math.clamp(x,4,Math.max(4,width-sw-4));
         y=Math.clamp(y,4,Math.max(4,height-sh-4));
+        if(!shore$reportedLore&&"hud".equals(System.getProperty("shoremod.selftest"))){
+            var lore=stack.get(DataComponentTypes.LORE);
+            if(lore!=null&&!lore.lines().isEmpty()&&lore.lines().getFirst().getString().equals("SHORE LORE MUST STAY")){
+                shore$reportedLore=true;ShoreClient.LOG.info("SHORE_SYNTHETIC_PREVIEW lines={} rect={},{},{},{} scale={}",lines.size(),x,y,sw,sh,sc);
+            }
+        }
+        ctx.createNewRootLayer();
         var dye=box.getColor();
         int border=switch(c.shulkerBorderMode){
             case 0->dye!=null?0xFF000000|dye.getEntityColor():0xFF8E5CC0; // undyed shulkers are purple
@@ -274,4 +282,3 @@ public abstract class HandledScreenMixin extends Screen {
         m.popMatrix();
     }
 }
-

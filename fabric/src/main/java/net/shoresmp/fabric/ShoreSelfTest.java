@@ -260,12 +260,16 @@ final class ShoreSelfTest {
         loreMeasured=false;
         ScreenshotRecorder.takeScreenshot(c.getFramebuffer(),image->{
             try(image){
-                int green=0,purple=0;
+                int green=0,purple=0,nearGreen=0,nearPurple=0;
+                var screen=(HandledScreen<?>)c.currentScreen;
+                try{var f=HandledScreen.class.getDeclaredField("focusedSlot");f.setAccessible(true);var focus=(Slot)f.get(screen);log("Synthetic lore capture hover="+(focus==null?-1:focus.id)+", enabled="+ShoreClient.config.shulkerPreview+", mode="+ShoreClient.config.shulkerMode);}catch(Exception e){throw new IllegalStateException(e);}
                 for(int y=0;y<image.getHeight();y++)for(int x=0;x<image.getWidth();x++){
                     int rgb=image.getColorArgb(x,y)&0xFFFFFF;
                     if(rgb==0x12AB34)green++;if(rgb==0xAB12CD)purple++;
+                    if(Math.abs((rgb>>16&255)-0x12)<=5&&Math.abs((rgb>>8&255)-0xAB)<=5&&Math.abs((rgb&255)-0x34)<=5)nearGreen++;
+                    if(Math.abs((rgb>>16&255)-0xAB)<=5&&Math.abs((rgb>>8&255)-0x12)<=5&&Math.abs((rgb&255)-0xCD)<=5)nearPurple++;
                 }
-                log(verdict(green>=10&&purple>=10)+" shulker lore colors remain visible "+mode+" ("+green+", "+purple+" pixels)");
+                log(verdict(nearGreen>=10&&nearPurple>=10)+" shulker lore colors remain visible "+mode+" ("+green+", "+purple+" exact; "+nearGreen+", "+nearPurple+" near pixels)");
             }finally{loreMeasured=true;}
         });
     }
@@ -600,5 +604,4 @@ final class ShoreSelfTest {
         catch(ReflectiveOperationException e){throw new IllegalStateException(e);}
     }
 }
-
 

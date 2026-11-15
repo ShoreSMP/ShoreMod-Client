@@ -90,6 +90,7 @@ if not modern:
   edit(Path('fabric/src/main/java/net/shoresmp/fabric/mixin/HandledScreenMixin.java'),lambda s:s.replace('method="renderMain"','method="render"'))
   for p in src.rglob('*.java'):
    s=p.read_text(encoding='utf-8-sig').replace('import net.minecraft.client.gl.RenderPipelines;','import net.minecraft.client.render.RenderLayer;').replace('RenderPipelines.GUI_TEXTURED','RenderLayer::getGuiTextured')
+   s=s.replace('ctx.createNewRootLayer();','')
    s=s.replace('.pushMatrix()','.push()').replace('.popMatrix()','.pop()').replace('.scale(1f/gs,1f/gs)','.scale(1f/gs,1f/gs,1f)');p.write_text(s,encoding='utf-8')
 
 if not modern:
@@ -182,6 +183,5 @@ with (root/'fabric/build.gradle').open('a',encoding='utf-8') as output:
 
 import runpy
 runpy.run_path(str(root/'scripts/add_compat_smoke.py'),init_globals={'src':src,'res':res,'root':root,'modern':modern,'target':target})
-
 
 
