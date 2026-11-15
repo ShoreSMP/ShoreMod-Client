@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.*;
 public final class ClipRecorder implements AutoCloseable {
     private final FrameRing ring = new FrameRing(30_000_000_000L, 96L*1024*1024);
     private final ExecutorService frames = Executors.newSingleThreadExecutor(r -> {var t=new Thread(r,"ShoreMod-frames");t.setDaemon(true);return t;});
-    private final ExecutorService exports = Executors.newSingleThreadExecutor(r -> {var t=new Thread(r,"ShoreMod-export");t.setDaemon(true);return t;});
+    private final ExecutorService exports = Executors.newSingleThreadExecutor(r -> {var t=new Thread(r,"ShoreMod-export");t.setDaemon(true);t.setPriority(Thread.MIN_PRIORITY);return t;});
     private final AtomicBoolean capturePending = new AtomicBoolean(), exporting = new AtomicBoolean();
     private final AtomicInteger epoch = new AtomicInteger();
     private long nextFrame, lastTrigger;
@@ -128,11 +128,8 @@ public final class ClipRecorder implements AutoCloseable {
                     if(snapshot.isEmpty()) throw new IOException("No gameplay frames buffered yet");
                     Files.createDirectories(directory());
                     String name="shoremod-"+DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS").format(LocalDateTime.now());
-                    Path avi=directory().resolve(name+".avi");
-                    Path temp=directory().resolve(name+".avi.part");
-                    MjpegAvi.write(temp,snapshot,fps,now);
-                    Files.move(temp,avi,StandardCopyOption.REPLACE_EXISTING);
-                    Path clip=convertIfConfigured(avi,ffmpeg);
+                    status="Saving MP4 clip…";
+                    Path clip=exportMp4(directory().resolve(name+".mp4"),snapshot,fps,now,ffmpeg);
                     double duration=Math.min(30,(now-snapshot.getFirst().nanos())/1_000_000_000.0);
                     Files.writeString(directory().resolve(name+".txt"),"ShoreMod gameplay evidence\nTime: "+Instant.now()+"\nReason: "+reason
                         +"\nServer: "+(privacy?"Hidden by privacy settings":server)+"\nRecorded duration: "+String.format(Locale.ROOT,"%.2f",duration)
@@ -150,21 +147,30 @@ public final class ClipRecorder implements AutoCloseable {
         });
         } catch(RejectedExecutionException e) { exporting.set(false); }
     }
-    private Path convertIfConfigured(Path avi,String executable) throws IOException,InterruptedException {
-        if(executable.isBlank()) return avi;
-        Path mp4=avi.resolveSibling(avi.getFileName().toString().replace(".avi",".mp4"));
+    private Path exportMp4(Path mp4,List<FrameRing.Frame> snapshot,int fps,long now,String executable) throws IOException,InterruptedException {
         Path temp=mp4.resolveSibling(mp4.getFileName()+".part.mp4");
+        Path avi=mp4.resolveSibling(mp4.getFileName()+".source.avi.part");
         Process process=null;
         try {
-            process=new ProcessBuilder(executable,"-nostdin","-y","-i",avi.toString(),"-c:v","libx264","-preset","veryfast","-crf","23","-pix_fmt","yuv420p","-movflags","+faststart",temp.toString())
-                .redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start();
-            if(!process.waitFor(90,TimeUnit.SECONDS)) {process.destroyForcibly();throw new IOException("MP4 conversion timed out");}
-            if(process.exitValue()!=0) throw new IOException("FFmpeg conversion failed");
-            Files.move(temp,mp4,StandardCopyOption.REPLACE_EXISTING);Files.delete(avi);return mp4;
+            boolean converted=false;
+            if(!executable.isBlank()) {
+                try {
+                    MjpegAvi.write(avi,snapshot,fps,now);
+                    process=new ProcessBuilder(executable,"-nostdin","-y","-i",avi.toString(),"-c:v","libx264","-threads","1","-preset","veryfast","-crf","23","-pix_fmt","yuv420p","-movflags","+faststart",temp.toString())
+                        .redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start();
+                    if(!process.waitFor(90,TimeUnit.SECONDS)) {
+                        process.destroyForcibly();process.waitFor();throw new IOException("MP4 conversion timed out");
+                    }
+                    converted=process.exitValue()==0 && Files.isRegularFile(temp) && Files.size(temp)>0;
+                } catch(IOException e) {ShoreClient.LOG.warn("Using built-in MP4 encoder after configured encoder failed",e);}
+            }
+            if(!converted) Mp4Clip.write(temp,snapshot,fps,now);
+            Files.move(temp,mp4,StandardCopyOption.REPLACE_EXISTING);
+            return mp4;
         } catch(InterruptedException e) {
             if(process!=null)process.destroyForcibly();
             Thread.currentThread().interrupt();throw e;
-        } catch(IOException e) {Files.deleteIfExists(temp);ShoreClient.LOG.warn("Keeping AVI after MP4 conversion failure",e);return avi;}
+        } finally {Files.deleteIfExists(avi);Files.deleteIfExists(temp);}
     }
     private void prune(int maxMb) throws IOException {
         try(var stream=Files.list(directory())) {

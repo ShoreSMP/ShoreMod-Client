@@ -25,6 +25,11 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: python3 scripts/prepare_base_smoke.py
       - run: bash gradlew build --console=plain --stacktrace
+      - name: Validate automatic MP4 export
+        run: |
+          sudo apt-get install -y ffmpeg
+          bash gradlew :fabric:mp4Test --console=plain
+          python3 scripts/check_mp4.py
       - run: python3 scripts/verify_compat.py '1.21.11'
       - name: Client startup and settings checks
         env:
@@ -283,7 +288,7 @@ jobs:
               with zipfile.ZipFile(path) as jar:
                   if 'fabric.mod.json' in jar.namelist():
                       meta=json.loads(jar.read('fabric.mod.json'))
-                      assert meta['version']=='1.3.1',meta
+                      assert meta['version']=='1.3.2',meta
                       versions.add(meta['depends']['minecraft'])
                   else:
                       assert 'plugin.yml' in jar.namelist()
@@ -293,17 +298,17 @@ jobs:
           print('PASS: seven client versions; companion plugin included only in private checkout')
           PY
       - name: Package one universal client
-        run: python3 scripts/package_universal.py jars universal/ShoreMod-1.3.1.jar
+        run: python3 scripts/package_universal.py jars universal/ShoreMod-1.3.2.jar
       - name: Verify real Fabric version selection
-        run: python3 scripts/check_universal.py universal/ShoreMod-1.3.1.jar
+        run: python3 scripts/check_universal.py universal/ShoreMod-1.3.2.jar
       - uses: actions/upload-artifact@v4
         with:
-          name: ShoreMod-1.3.1
+          name: ShoreMod-1.3.2
           if-no-files-found: error
           path: universal/*
       - uses: actions/upload-artifact@v4
         with:
-          name: ShoreMod-1.3.1-All-Jars
+          name: ShoreMod-1.3.2-All-Jars
           path: jars/*.jar
           if-no-files-found: error
 
@@ -313,15 +318,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          if gh release view v1.3.1 >/dev/null 2>&1; then
-            echo "Release v1.3.1 already exists; preserving its published assets."
+          if gh release view v1.3.2 >/dev/null 2>&1; then
+            echo "Release v1.3.2 already exists; preserving its published assets."
             exit 0
           fi
           cat > release-notes.txt <<'NOTES'
+          Clips now save as real H.264 MP4 automatically using a bundled Java encoder. No FFmpeg installation is required. Encoding runs on a low priority export worker, outside the render thread. The configured 60 FPS timeline is preserved; missed capture frames repeat without speeding up the video. Video only, without game or microphone audio.
+
           Fixes shulker previews hiding item lore. The preview now shows the normal formatted tooltip text above the contents grid, wraps long lines, and fits the combined panel inside the screen. Turning off the preview title hides only the item name; lore remains visible.
 
           One universal JAR supports Minecraft 1.21.5, 1.21.8, 1.21.10, 1.21.11, 26.1, 26.2, and 26.3. Replace your old ShoreMod JAR. Fabric Loader 0.19.2+ and Java 21 for listed 1.21.x versions; Loader 0.20.1+ and Java 25 for 26.x. Install the matching Fabric API.
 
           Validated with all seven version builds/startup checks and real framebuffer tests that check two styled lore lines with the preview title disabled and at 50% scale.
           NOTES
-          gh release create v1.3.1 universal/ShoreMod-1.3.1.jar universal/ShoreMod-1.3.1.jar.sha256 --target "$GITHUB_SHA" --title "ShoreMod 1.3.1" --notes-file release-notes.txt
+          gh release create v1.3.2 universal/ShoreMod-1.3.2.jar universal/ShoreMod-1.3.2.jar.sha256 --target "$GITHUB_SHA" --title "ShoreMod 1.3.2" --notes-file release-notes.txt
