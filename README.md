@@ -32,7 +32,7 @@ Open settings with **Right Shift** or **/shore**. New visual modules are optiona
 - Chat heads with size and outer-layer controls, plus existing chat history, stacking, timestamps, and mentions. Heads appear beside recognized sender names, including multiline server headers, and use Minecraft-managed skins.
 - Existing HUD customization, fullbright, zoom, crosshair painter/imports, inventory tools, and optional local clip recorder.
 
-Recording is disabled on the first upgrade to 1.4.0. Enabling it explicitly exits performance mode. Exact FPS gains depend on hardware, recording settings, and other mods.
+Recording is off by default. Enabling it explicitly exits performance mode. Exact FPS gains depend on hardware, recording settings, and other mods.
 
 ## Build
 
