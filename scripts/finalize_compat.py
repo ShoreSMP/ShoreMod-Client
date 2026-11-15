@@ -162,3 +162,25 @@ if target=='26.3':
  file=root/'fabric/src/main/java/net/shoresmp/fabric/mixin/GuiOpacityMixin.java'
  code=file.read_text().replace('Lcom/mojang/blaze3d/pipeline/RenderPipeline;',descriptor);file.write_text(code)
  print('Resolved GUI render pipeline:',match[1])
+
+# Resolve zoom argument hooks from the actual mouse bytecode, including inherited call owners.
+if target.startswith('26.'):
+ output=subprocess.run(['javap','-p','-c','-classpath',classpath,'net.minecraft.client.MouseHandler'],capture_output=True,text=True,check=True).stdout
+ (root/'compat-mouse-bytecode.txt').write_text(output)
+ caller=None;hooks=set()
+ for line in output.splitlines():
+  header=re.match(r'\s+(?:public|private|protected).*?\b([\w$]+)\([^;]*\);\s*$',line)
+  if header:caller=header[1]
+  invoke=re.search(r'// (?:InterfaceMethod|Method) ([\w/$]+)\.([\w$]+):\(DD\)V',line)
+  if invoke and caller and (invoke[2] in ('turn','changeLookDirection') or invoke[1].endswith('/LocalPlayer')):
+   hooks.add((caller,'L'+invoke[1]+';'+invoke[2]+'(DD)V'))
+ print('Mouse zoom bytecode hooks:',sorted(hooks))
+ assert len(hooks)==1,'Expected one mouse-to-player look call for '+target
+ method,descriptor=next(iter(hooks))
+ file=root/'fabric/src/main/java/net/shoresmp/fabric/mixin/MouseMixin.java'
+ code=file.read_text(encoding='utf-8')
+ code,count=re.subn(r'(@ModifyArg\(method=")[^"]*',lambda m:m[1]+method,code)
+ assert count==2,'Both yaw and pitch zoom hooks must be resolved'
+ code=re.sub(r'(target=")[^"]*',lambda m:m[1]+descriptor,code)
+ file.write_text(code,encoding='utf-8')
+ print('Resolved mouse zoom:',method,descriptor)
