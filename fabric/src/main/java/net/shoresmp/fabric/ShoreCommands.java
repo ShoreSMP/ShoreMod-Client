@@ -29,8 +29,22 @@ public final class ShoreCommands {
             dispatcher.register(ClientCommandManager.literal("payrain").then(ClientCommandManager.argument("total", StringArgumentType.word())
                 .then(ClientCommandManager.argument("winners", IntegerArgumentType.integer(1,10000))
                     .executes(ctx -> plan("rain", StringArgumentType.getString(ctx,"total"), IntegerArgumentType.getInteger(ctx,"winners"))))));
+            dispatcher.register(ClientCommandManager.literal("waypoint")
+                .executes(ctx->{var screen=new ShoreScreen(null);screen.showModule("waypoints");ShoreClient.openNextTick(()->screen);return 1;})
+                .then(ClientCommandManager.literal("add").then(ClientCommandManager.argument("name",StringArgumentType.string())
+                    .executes(ctx->waypoint(StringArgumentType.getString(ctx,"name"),""))
+                    .then(ClientCommandManager.argument("x",IntegerArgumentType.integer(-30000000,30000000))
+                    .then(ClientCommandManager.argument("y",IntegerArgumentType.integer(-2048,2048))
+                    .then(ClientCommandManager.argument("z",IntegerArgumentType.integer(-30000000,30000000))
+                    .executes(ctx->waypoint(StringArgumentType.getString(ctx,"name"),IntegerArgumentType.getInteger(ctx,"x")+" "+IntegerArgumentType.getInteger(ctx,"y")+" "+IntegerArgumentType.getInteger(ctx,"z"))))))))
+                .then(ClientCommandManager.literal("list").executes(ctx->{var mc=MinecraftClient.getInstance();for(var marker:ShoreClient.config.savedWaypoints)if(marker.server.equals(ShoreVisuals.scope(mc)))ShoreClient.tell(marker.name+": "+marker.x+" "+marker.y+" "+marker.z+" ("+marker.dimension+")");return 1;})));
             // /modlist intentionally stays a server command. The plugin checks developer access.
         });
+    }
+    private static int waypoint(String name,String coordinates){
+        var c=ShoreClient.config;String oldName=c.waypointName,oldCoordinates=c.waypointCoordinates;
+        c.waypointName=name;c.waypointCoordinates=coordinates;boolean saved=ShoreVisuals.saveWaypoint();
+        c.waypointName=oldName;c.waypointCoordinates=oldCoordinates;c.save();return saved?1:0;
     }
     private static int deaths() {
         var deaths = ShoreClient.config.deaths;

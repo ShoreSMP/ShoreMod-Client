@@ -19,6 +19,7 @@ public final class ShoreHud {
     private ShoreHud(){}
 
     public static void register(){
+        HudElementRegistry.addFirst(Identifier.of("shoremod","motion_blur"),(ctx,tick)->ShoreMotionBlur.render(ctx));
         HudElementRegistry.addLast(Identifier.of("shoremod","hud"),(ctx,tick)->render(ctx));
         HudElementRegistry.replaceElement(net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements.CROSSHAIR,vanilla->(ctx,tick)->{
             Config c=ShoreClient.config;var client=MinecraftClient.getInstance();
@@ -52,6 +53,12 @@ public final class ShoreHud {
         }
         if(c.hudBiome&&player!=null&&client.world!=null&&!hidePosition)
             out.add(new Readout("biome",client.world.getBiome(player.getBlockPos()).getKey().map(k->title(k.getValue().getPath())).orElse("Unknown")));
+        if(c.dayCounter&&client.world!=null){
+            long ticks=client.world.getTimeOfDay();long day=Math.floorDiv(ticks,24000)+(c.dayOneBased?1:0)+(long)c.dayOffset;
+            String value=c.dayLabel+" "+day;
+            if(c.dayShowTime){long minutes=Math.floorMod(ticks+6000,24000)*1440/24000;value+=String.format(Locale.ROOT,"  %02d:%02d",minutes/60,minutes%60);}
+            out.add(new Readout("days",value));
+        }
         if(c.hudClock)out.add(new Readout("clock",LocalTime.now().format(CLOCK)));
         var target=ShorePvp.target();
         if(c.targetHud&&target!=null)out.add(new Readout("target",target.getName().getString()+"  ❤ "+String.format(Locale.ROOT,"%.1f",target.getHealth()+target.getAbsorptionAmount())+(c.targetDistance?String.format(Locale.ROOT,"  %.1fm",target.distanceTo(player)):"")));
@@ -83,7 +90,7 @@ public final class ShoreHud {
     }
 
     private static final int TEXT=0xFFFFFFFF;
-    private static int box(){return (Math.round(ShoreClient.config.hudBgOpacity*2.55f)<<24)|0x101217;}
+    private static int box(){return (Math.round(ShoreClient.config.hudBgOpacity*2.55f)<<24)|ShoreClient.config.hudBackgroundColor;}
     private static int textColor(){Config c=ShoreClient.config;return switch(c.hudTextColor){case 1->0xFF000000|c.accent;case 2->0xFFC8CDD3;case 3->0xFF000000|c.hudCustomColor;default->TEXT;};}
     /**
      * Classic PvP-client HUD: each readout in its own small dark box, Minecraft's own pixel font with
@@ -101,10 +108,10 @@ public final class ShoreHud {
         float global=net.shoresmp.core.HudScale.guiUnits(client.getWindow().getFramebufferHeight(),client.getWindow().getScaleFactor(),c.hudScale,100);
         List<Block> blocks=new ArrayList<>();
         for(Readout r:lines(client)){
-            int w=tr.getWidth(r.text())+PAD_X*2;
+            int w=tr.getWidth(r.text())+c.hudPadding*2;
             blocks.add(new Block(w,BOX_H,global*c.hudSize(r.id())/100f,g->{
                 box(g,0,0,w,BOX_H);
-                g.drawText(tr,r.text(),PAD_X,(BOX_H-8)/2+1,textColor(),c.hudShadow);
+                g.drawText(tr,r.text(),c.hudPadding,(BOX_H-8)/2+1,textColor(),c.hudShadow);
             }));
         }
         if(c.keystrokes)blocks.add(keystrokes(client,global*c.hudSize("keystrokes")/100f));
@@ -128,7 +135,7 @@ public final class ShoreHud {
         // into chat (left side) or off the screen, the next blocks start a new column beside it.
         int sw=ctx.getScaledWindowWidth(),sh=ctx.getScaledWindowHeight();
         boolean right=c.hudCorner==1||c.hudCorner==3,bottom=c.hudCorner>=2;
-        final float gap=2*global,margin=4*global;
+        final float gap=c.hudGap*global,margin=c.hudMargin*global;
         float topOffset=right&&!bottom&&!client.player.getStatusEffects().isEmpty()?52:0;
         int chatH=net.minecraft.client.gui.hud.ChatHud.getHeight(client.options.getChatHeightUnfocused().getValue())+48;
         float avail=Math.max(60,sh-margin*2-topOffset-(right?0:Math.min(sh*0.6f,chatH)));
@@ -306,6 +313,8 @@ public final class ShoreHud {
     }
     /** Dark box with one-pixel corner notches, like vanilla's own UI rounding. */
     private static void box(DrawContext ctx,int x,int y,int w,int h){
+        var c=ShoreClient.config;
+        if(c.hudBorder){ctx.fill(x,y,x+w,y+1,0xFF000000|c.hudBorderColor);ctx.fill(x,y+h-1,x+w,y+h,0xFF000000|c.hudBorderColor);}
         ctx.fill(x+1,y,x+w-1,y+h,box());
         ctx.fill(x,y+1,x+1,y+h-1,box());
         ctx.fill(x+w-1,y+1,x+w,y+h-1,box());

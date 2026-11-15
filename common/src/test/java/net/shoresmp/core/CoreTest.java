@@ -12,6 +12,11 @@ public final class CoreTest {
     private static int checks;
     private static void check(boolean value, String message) { checks++; if (!value) throw new AssertionError(message); }
     public static void main(String[] args) throws Exception {
+        var multiline=ChatSenders.match("[SEAMAN] Nolan\nhello world",List.of("Nolan"));
+        check(multiline!=null&&multiline.start()==9,"multiline sender is located after rank");
+        check(ChatSenders.sender("[VIP] .Bedrock\nhello",List.of(".Bedrock")).equals(".Bedrock"),"Bedrock name in multiline header");
+        check(ChatSenders.match("Server broadcast\nNolan: hi",List.of("Nolan"))==null,"multiline body is not mistaken for a sender");
+        check(ChatSenders.match("Nolan mentioned Alex\nhello",List.of("Nolan"))==null,"only terminal header names qualify");
         var aliases=List.of("Alex","Nolan","BuilderNick");
         for(String header:List.of("<Alex> hello","[Royal] Alex: hello","[Royal] Alex \u00bb hello","[Royal] Alex \u276f hello","[Royal] Alex \u2192 hello","[Royal] Alex \u279c hello","[Royal] Alex \u2022 hello","[12:30] [Royal] Alex: hello","VIP | Alex: hello","Alex -> hello","\u00a7b[Royal] \u00a7fAlex \u27a4 hello"))
             check("Alex".equals(ChatSenders.sender(header,aliases)),"formatted sender: "+header);

@@ -1,7 +1,7 @@
 name: Build and release ShoreMod
 on:
   push:
-    branches: ['main', 'fix/compact-shulker-tooltip']
+    branches: ['main', 'upgrade/visuals-140']
     paths: ['fabric/**', 'common/**', 'plugin/**', 'scripts/**', 'build.gradle', 'gradle.properties', 'settings.gradle', 'gradle/**', '.github/workflows/compat-build.yml']
   workflow_dispatch:
 concurrency:
@@ -82,6 +82,7 @@ jobs:
       - run: python3 scripts/prepare_compat.py '${{ matrix.minecraft }}'
       - run: bash gradlew :common:coreTest :fabric:build :fabric:compatClasspath --console=plain --stacktrace
       - run: python3 scripts/finalize_compat.py '${{ matrix.minecraft }}'
+      - run: bash gradlew :fabric:build --console=plain --stacktrace
       - run: python3 scripts/verify_compat.py '${{ matrix.minecraft }}'
       - name: Client startup and settings smoke test
         env:
@@ -288,7 +289,7 @@ jobs:
               with zipfile.ZipFile(path) as jar:
                   if 'fabric.mod.json' in jar.namelist():
                       meta=json.loads(jar.read('fabric.mod.json'))
-                      assert meta['version']=='1.3.3',meta
+                      assert meta['version']=='1.4.0',meta
                       versions.add(meta['depends']['minecraft'])
                   else:
                       assert 'plugin.yml' in jar.namelist()
@@ -298,17 +299,17 @@ jobs:
           print('PASS: seven client versions; companion plugin included only in private checkout')
           PY
       - name: Package one universal client
-        run: python3 scripts/package_universal.py jars universal/ShoreMod-1.3.3.jar
+        run: python3 scripts/package_universal.py jars universal/ShoreMod-1.4.0.jar
       - name: Verify real Fabric version selection
-        run: python3 scripts/check_universal.py universal/ShoreMod-1.3.3.jar
+        run: python3 scripts/check_universal.py universal/ShoreMod-1.4.0.jar
       - uses: actions/upload-artifact@v4
         with:
-          name: ShoreMod-1.3.3
+          name: ShoreMod-1.4.0
           if-no-files-found: error
           path: universal/*
       - uses: actions/upload-artifact@v4
         with:
-          name: ShoreMod-1.3.3-All-Jars
+          name: ShoreMod-1.4.0-All-Jars
           path: jars/*.jar
           if-no-files-found: error
 
@@ -318,19 +319,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          if gh release view v1.3.3 >/dev/null 2>&1; then
-            echo "Release v1.3.3 already exists; preserving its published assets."
+          if gh release view v1.4.0 >/dev/null 2>&1; then
+            echo "Release v1.4.0 already exists; preserving its published assets."
             exit 0
           fi
           cat > release-notes.txt <<'NOTES'
-          Shulker tooltips now have a compact grouped contents panel with total item counts, vanilla-style gray slots, an occupied-stack count, and an Alt+Shift shortcut for the full 27-slot layout. Custom item lore and formatting stay visible.
+          Redesigned shulker tooltips: one panel with the item name, contents, preserved formatted lore, and modifier hints. Left Alt+Left Shift expands all slots; Left Control locks the tooltip for inspecting contained items.
 
-          Chat heads recognize more formatted sender headers, including rank prefixes, timestamps, Unicode separators, and tab-list nicknames. Head spacing follows the configured size. Players must be present in the client player list for skin lookup.
+          Adds GPU frame-history motion blur with strength, samples, capture-rate, movement-only, FPS-protection and memory-budget controls; custom crystal color, opacity, size, animation, bobbing, base/beam controls; and a configurable world-day HUD counter.
 
-          Your own Shore logo appears in tab and on your nameplate when enabled, even without the companion server plugin. Other players still require server presence data.
+          Hitboxes have thickness, opacity, corner/ground styles, target colors, eye/look lines and distance fading. Waypoints have a quick M menu, /waypoint commands, save-here, tracking, rename/colors, coordinate copying, death markers and offscreen indicators. Chat heads support multiline server headers and appear beside the sender name.
 
-          One universal JAR supports Minecraft 1.21.5, 1.21.8, 1.21.10, 1.21.11, 26.1, 26.2, and 26.3. Replace the old ShoreMod JAR. Use matching Fabric API, Fabric Loader 0.19.2+ and Java 21 for listed 1.21.x versions, or Loader 0.20.1+ and Java 25 for 26.x.
+          Settings are darker and roomier, with single-column rows by default, expandable advanced sections, customizable menu/HUD/inventory colors, spacing and padding. Removed the Updates panel.
 
-          Release publication is gated on seven-version compilation/startup, universal selection, and baseline in-game UI regression checks. Includes tests for component-aware shulker grouping, lore preservation, formatted chat sender detection, and visible-line skin linking.
+          One universal JAR supports 1.21.5, 1.21.8, 1.21.10, 1.21.11, 26.1, 26.2 and 26.3. Use the matching Fabric API. Optional visual effects cost GPU time; motion blur is off by default and has FPS protection.
           NOTES
-          gh release create v1.3.3 universal/ShoreMod-1.3.3.jar universal/ShoreMod-1.3.3.jar.sha256 --target "$GITHUB_SHA" --title "ShoreMod 1.3.3" --notes-file release-notes.txt
+          gh release create v1.4.0 universal/ShoreMod-1.4.0.jar universal/ShoreMod-1.4.0.jar.sha256 --target "$GITHUB_SHA" --title "ShoreMod 1.4.0" --notes-file release-notes.txt

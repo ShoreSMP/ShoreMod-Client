@@ -20,7 +20,9 @@
     "ScreenBackgroundMixin",
     "TotemHeldMixin",
     "GuiOpacityMixin",
-    "ChatHeadsBackendMixin"
+    "ChatHeadsBackendMixin",
+    "MotionBlurMixin",
+    "CrystalMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -3,6 +3,28 @@ import json,os,re,subprocess,sys
 from pathlib import Path
 root=Path(__file__).resolve().parents[1];target=sys.argv[1]
 cp=json.loads((root/'fabric/build/compat-classpath.json').read_text());classpath=os.pathsep.join(cp)
+# Resolve crystal selectors from the actual target descriptors.
+renderer='net.minecraft.client.renderer.entity.EndCrystalRenderer' if target.startswith('26.') else 'net.minecraft.client.render.entity.EndCrystalEntityRenderer'
+state='net/minecraft/client/renderer/entity/state/EndCrystalRenderState' if target.startswith('26.') else 'net/minecraft/client/render/entity/state/EndCrystalEntityRenderState'
+dump=subprocess.run(['javap','-p','-s','-classpath',classpath,renderer],capture_output=True,text=True,check=True).stdout
+entries=[];header=''
+for line in dump.splitlines():
+ if line.strip().startswith('descriptor:'):entries.append((header,line.strip().split(':',1)[1].strip()))
+ elif line.strip():header=line.strip()
+render=[(re.search(r'([\w$]+)\(',h)[1],d) for h,d in entries if d.startswith('(L'+state+';') and ('MatrixStack;' in d or 'PoseStack;' in d)]
+update=[(re.search(r'([\w$]+)\(',h)[1],d) for h,d in entries if 'EndCrystal' in d and '(L'+state+';' not in d and ';L'+state+';F)V' in d]
+layer=[(re.search(r'([\w$]+);$',h)[1],d) for h,d in entries if 'static final' in h and ('RenderLayer;' in d or 'RenderType;' in d)]
+bob=[re.search(r'([\w$]+)\(',h)[1] for h,d in entries if ' static ' in ' '+h and d=='(F)F']
+assert len(render)==1 and len(update)==1 and len(layer)==1 and len(bob)==1,(renderer,render,update,layer,bob,dump)
+file=root/'fabric/src/main/java/net/shoresmp/fabric/mixin/CrystalMixin.java'
+code=file.read_text(encoding='utf-8')
+values={'SHORE_CRYSTAL_RENDER':render[0][0]+render[0][1],'SHORE_CRYSTAL_STATE':update[0][0]+update[0][1],'SHORE_CRYSTAL_LAYER':'L'+renderer.replace('.','/')+';'+layer[0][0]+':'+layer[0][1],'SHORE_CRYSTAL_BOB':bob[0]}
+for key,value in values.items():
+ code,n=re.subn(r'(String '+key+r'=)"[^"]*"',lambda m:m[1]+json.dumps(value),code)
+ assert n==1,key
+file.write_text(code,encoding='utf-8')
+print('Resolved custom crystal hooks:',values)
+
 if not target.startswith('26.'):
  p=subprocess.run(['javap','-p','-c','-classpath',classpath,'net.minecraft.client.gui.hud.ChatHud'],capture_output=True,text=True)
  (root/'compat-api.txt').write_text(p.stdout+p.stderr)
@@ -184,3 +206,12 @@ if target.startswith('26.'):
  code=re.sub(r'(target=")[^"]*',lambda m:m[1]+descriptor,code)
  file.write_text(code,encoding='utf-8')
  print('Resolved mouse zoom:',method,descriptor)
+
+if target.startswith('26.'):
+ output=api['net.minecraft.client.renderer.GameRenderer']
+ choices=re.findall(r'\bvoid ([\w$]+)\([^;\n]*(?:DeltaTracker|RenderTickCounter)[^;\n]*\);',output)
+ assert 'renderLevel' in choices,('Cannot resolve world frame-history hook',choices,output)
+ file=root/'fabric/src/main/java/net/shoresmp/fabric/mixin/MotionBlurMixin.java'
+ code=file.read_text(encoding='utf-8')
+ code=re.sub(r'(String SHORE_WORLD_RENDER=)"[^"]*"',r'\1"renderLevel"',code)
+ file.write_text(code,encoding='utf-8')

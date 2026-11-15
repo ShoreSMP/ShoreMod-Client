@@ -27,7 +27,7 @@ public final class ShoreScreen extends Screen {
     // ------------------------------------------------------------------ palette
     private static final int TEXT=0xFFF4F5F7, MUTED=0xFF9BA1AA, FAINT=0xFF60666F;
     private static final int TOP=0xEB121417, TOP_HOVER=0xF51C1F24;
-    private static final int CARD=0xFF15181C, CARD_HOVER=0xFF191C21, EDGE=0xFF23272D, EDGE_HOVER=0xFF343941;
+    private static final int CARD=0xFF090B0E, CARD_HOVER=0xFF11151B, EDGE=0xFF23272D, EDGE_HOVER=0xFF343941;
     private static final int CHIP=0xFF1C1F24, CHIP_HOVER=0xFF262A30, BTN=0xFF1E2227, BTN_HOVER=0xFF2A2F35;
     private static final int ON=0xFF7CC62F, ON_HOVER=0xFF8BD33E, OFF=0xFF1E2227, OFF_HOVER=0xFF272B31;
     private static final int ROW_HOVER=0xFF1B1E23, INPUT=0xFF0B0D0F, INPUT_EDGE=0xFF2A2E34, DIVIDER=0xFF1E2126, TRACK=0xFF353A41, HEART=0xFFFF5C7A;
@@ -40,7 +40,7 @@ public final class ShoreScreen extends Screen {
     private final Map<Row,Runnable> keyClicks=new HashMap<>();
     private Runnable keyClick(Row r){return keyClicks.computeIfAbsent(r,x->()->listening=x);}
 
-    private enum Page {GRID,MODULE,GENERAL,CONTROLS,UPDATES}
+    private enum Page {GRID,MODULE,GENERAL,CONTROLS}
     private record Module(String id,String name,String desc,String category,String icon,boolean isNew,
                           BooleanSupplier get,Consumer<Boolean> set,Consumer<ShoreScreen> settings){}
     /** One settings row (data only; drawn every frame). */
@@ -92,9 +92,9 @@ public final class ShoreScreen extends Screen {
     private float mx,my,scroll,scrollTarget,maxScroll,frameDt;
     private float[] clip;
     private long lastFrame,resetArmedUntil,caretEpoch;
-    private Object shownUpdate;
+    private Config.Waypoint deleteWaypoint;private long deleteWaypointUntil;
 
-    public ShoreScreen(Screen parent){super(Text.literal("ShoreMod"));this.parent=parent;defineModules();}
+    public ShoreScreen(Screen parent){super(Text.literal("ShoreMod"));this.parent=parent;defineModules();collapsed.add("hitboxes/Advanced");collapsed.add("motionblur/Advanced");}
 
     private static int accent(){return 0xFF000000|ShoreClient.config.accent;}
     private static boolean light(int c){return ((c>>16&255)*299+(c>>8&255)*587+(c&255)*114)/1000>150;}
@@ -115,6 +115,39 @@ public final class ShoreScreen extends Screen {
             s.color("Custom text color","Type a hex color; applies to the HUD",()->c.hudCustomColor,v->{c.hudCustomColor=v;c.hudTextColor=3;});
             s.toggle("Text shadow","Minecraft's drop shadow behind the text",()->c.hudShadow,v->c.hudShadow=v);
         };
+        mod("motionblur","Motion Blur","GPU frame-history blending with a sharp HUD.","Utility","camera",true,()->c.motionBlur,v->{c.motionBlur=v;ShoreMotionBlur.clear();},s->{
+            s.section("Appearance");
+            s.slider("Strength","0 is clear; higher values leave longer trails",0,85,1,"%",()->c.blurStrength,v->c.blurStrength=v);
+            s.slider("History samples","More samples use more GPU memory",1,4,1,"",()->c.blurSamples,v->c.blurSamples=v);
+            s.toggle("Only while moving","Avoid trails when you stand still",()->c.blurMovingOnly,v->c.blurMovingOnly=v);
+            s.section("Advanced");
+            s.slider("Capture rate","GPU texture copies per second",15,120,1," FPS",()->c.blurFps,v->c.blurFps=v);
+            s.toggle("FPS protection","Pause the effect below the FPS threshold",()->c.blurAutoProtect,v->c.blurAutoProtect=v);
+            s.slider("Minimum FPS","",15,120,1," FPS",()->c.blurMinFps,v->c.blurMinFps=v);
+            s.slider("GPU memory budget","History automatically shrinks to fit this budget",16,256,8," MB",()->c.blurMemoryMb,v->c.blurMemoryMb=v);
+            s.info("GPU history","No CPU framebuffer readbacks",ShoreMotionBlur::status);
+        });
+        mod("crystals","End Crystals","Customize the crystal model appearance without changing hit detection.","PvP","cube",true,()->c.customCrystals,v->c.customCrystals=v,s->{
+            s.section("Color");
+            s.color("Crystal color","Recolors the active resource pack texture",()->c.crystalColor,v->c.crystalColor=v);
+            s.toggle("Rainbow","Cycle hue at a bounded update rate",()->c.crystalRainbow,v->c.crystalRainbow=v);
+            s.segment("Style","",new String[]{"Textured","Flat tint","Ghost"},()->c.crystalStyle,v->c.crystalStyle=v);
+            s.slider("Opacity","",5,100,1,"%",()->c.crystalOpacity,v->c.crystalOpacity=v);
+            s.section("Model");
+            s.slider("Visual size","Does not change the server hitbox",25,200,1,"%",()->c.crystalSize,v->c.crystalSize=v);
+            s.slider("Animation speed","Spin and bob timing; zero freezes animation",0,300,1,"%",()->c.crystalSpeed,v->c.crystalSpeed=v);
+            s.slider("Bobbing amount","",0,200,1,"%",()->c.crystalBob,v->c.crystalBob=v);
+            s.toggle("Base plate","",()->c.crystalBase,v->c.crystalBase=v);
+            s.toggle("Beam","",()->c.crystalBeam,v->c.crystalBeam=v);
+        });
+        mod("days","Day Counter","Display the world's day count in your HUD.","HUD","clock",true,()->c.dayCounter,v->c.dayCounter=v,s->{
+            s.section("Counter");
+            s.field("Label","","Day",c.dayLabel,v->{c.dayLabel=v.substring(0,Math.min(24,v.length()));c.save();});
+            s.toggle("Start at day one","Off uses Minecraft's zero-based day count",()->c.dayOneBased,v->c.dayOneBased=v);
+            s.slider("Day offset","Adjust for a season reset", -1000000,1000000,1,"",()->c.dayOffset,v->c.dayOffset=v);
+            s.toggle("Show in-game time","Use server-supplied time, not your local clock",()->c.dayShowTime,v->c.dayShowTime=v);
+            hudSettings.apply("days").accept(s);
+        });
         mod("performance","Performance","Reduce recurring rendering and disable framebuffer recording.","Utility","gauge",true,()->c.lowOverhead,v->{c.lowOverhead=v;ShoreClient.recorder.clear();},s->{
             s.info("Recording", "Performance mode skips framebuffer capture entirely",ShoreClient.recorder::status);
             s.toggle("HUD item icons","3D item models cost more than plain text labels",()->c.hudItemIcons,v->c.hudItemIcons=v);
@@ -133,6 +166,7 @@ public final class ShoreScreen extends Screen {
         });
         mod("guitweaks","GUI Tweaks","Transparent inventory backgrounds and adjustable Minecraft GUI size.","Inventory","gear",true,()->c.guiTweaks,v->c.guiTweaks=v,s->{
             s.toggle("Clear world background","Remove blur and dimming behind inventory screens",()->c.guiNoDim,v->c.guiNoDim=v);
+            s.color("Inventory tint","Color applied only to inventory background textures",()->c.guiTintColor,v->c.guiTintColor=v);
             s.slider("Inventory opacity","Background textures only; items and text stay readable",10,100,1,"%",()->c.inventoryOpacity,v->c.inventoryOpacity=v);
             s.slider("Minecraft GUI scale","Changes vanilla menus, inventory and HUD size",1,6,1,"x",()->MinecraftClient.getInstance().options.getGuiScale().getValue(),v->{var mc=MinecraftClient.getInstance();mc.options.getGuiScale().setValue(v);mc.options.write();mc.onResolutionChanged();});
         });
@@ -140,7 +174,19 @@ public final class ShoreScreen extends Screen {
             s.color("Color","RGB hex",()->c.hitboxColor,v->c.hitboxColor=v);
             s.toggle("Players only","Skip mobs and other entities",()->c.hitboxPlayersOnly,v->c.hitboxPlayersOnly=v);
             s.slider("Range","Limits nearby entity checks",4,48,1,"m",()->c.hitboxRange,v->c.hitboxRange=v);
-            s.info("Visibility","Only entities in line of sight; at most 32 at a time",()->"");
+            s.section("Style");
+            s.segment("Shape","Visual only; actual hit detection stays unchanged",new String[]{"Full box","Corners","Ground"},()->c.hitboxStyle,v->c.hitboxStyle=v);
+            s.slider("Line thickness","",1,4,1," px",()->c.hitboxWidth,v->c.hitboxWidth=v);
+            s.slider("Opacity","",5,100,1,"%",()->c.hitboxOpacity,v->c.hitboxOpacity=v);
+            s.toggle("Highlight target","Different color for the entity under your crosshair",()->c.hitboxTargetColor,v->c.hitboxTargetColor=v);
+            s.color("Target color","",()->c.hitboxTargetRgb,v->c.hitboxTargetRgb=v);
+            s.section("Advanced");
+            s.toggle("Eye level","Draw an eye-height reference line",()->c.hitboxEyes,v->c.hitboxEyes=v);
+            s.color("Eye-line color","",()->c.hitboxEyeColor,v->c.hitboxEyeColor=v);
+            s.toggle("Look direction","Show the direction the entity faces",()->c.hitboxLook,v->c.hitboxLook=v);
+            s.color("Look-line color","",()->c.hitboxLookColor,v->c.hitboxLookColor=v);
+            s.toggle("Distance fade","Fade distant hitboxes",()->c.hitboxDistanceFade,v->c.hitboxDistanceFade=v);
+            s.slider("Entity limit","Visible entities only; keeps work bounded",1,64,1,"",()->c.hitboxLimit,v->c.hitboxLimit=v);
         });
         mod("totemtweaks","Totem Tweaks","Use a lightweight, customizable totem sprite in your hand and on pop.","PvP","totem",true,()->c.totemTweaks,v->c.totemTweaks=v,s->{
             s.slider("Held size","First-person totem sprite",10,200,1,"%",()->c.heldTotemSize,v->c.heldTotemSize=v);
@@ -148,16 +194,35 @@ public final class ShoreScreen extends Screen {
             s.slider("Pop size","Size of the pop animation",10,200,1,"%",()->c.popTotemSize,v->c.popTotemSize=v);
             s.slider("Pop opacity","0 hides the pop animation",0,100,1,"%",()->c.popTotemOpacity,v->c.popTotemOpacity=v);
         });
-        mod("waypoints","Waypoints","Local markers saved separately for each server and dimension.","Utility","pin",true,()->c.waypoints,v->c.waypoints=v,s->{
+        mod("waypoints","Waypoints","Save here, enter coordinates, and manage local markers.","Utility","pin",true,()->c.waypoints,v->c.waypoints=v,s->{
+            s.section("Create a marker");
             s.field("Name","Up to 32 characters","Home",c.waypointName,v->{c.waypointName=v.substring(0,Math.min(32,v.length()));c.save();});
-            s.field("Coordinates","Leave blank to use your current position","X Y Z",c.waypointCoordinates,v->{c.waypointCoordinates=v;c.save();});
-            s.color("New marker color","RGB hex",()->c.waypointColor,v->c.waypointColor=v);
+            s.field("Coordinates","Blank uses where you stand; spaces or commas","X Y Z",c.waypointCoordinates,v->{c.waypointCoordinates=v;c.save();});
+            s.color("New marker color","",()->c.waypointColor,v->c.waypointColor=v);
             s.action("Save waypoint","Maximum 64 local markers","Save",()->{ShoreVisuals.saveWaypoint();s.build();});
+            s.action("Save current position","Ignores typed coordinates","Save here",()->{String old=c.waypointCoordinates;c.waypointCoordinates="";ShoreVisuals.saveWaypoint();c.waypointCoordinates=old;s.build();});
+            s.section("Display");
+            s.toggle("Show distance","",()->c.waypointDistances,v->c.waypointDistances=v);
+            s.toggle("Show coordinates","",()->c.waypointCoordinatesShown,v->c.waypointCoordinatesShown=v);
+            s.toggle("Offscreen indicators","Keep an arrow at the screen edge for markers behind you",()->c.waypointOffscreen,v->c.waypointOffscreen=v);
+            s.toggle("Tracked marker at top","Pin the selected marker above the crosshair",()->c.waypointCompass,v->c.waypointCompass=v);
+            s.toggle("Label background","",()->c.waypointBackground,v->c.waypointBackground=v);
+            s.slider("Background opacity","",0,100,1,"%",()->c.waypointOpacity,v->c.waypointOpacity=v);
             s.slider("Visible range","Distance in blocks",16,30000000,16,"m",()->c.waypointRange,v->c.waypointRange=v);
             s.slider("Label size","",50,150,1,"%",()->c.waypointScale,v->c.waypointScale=v);
+            s.slider("Maximum labels","Nearest markers first; tracked marker gets priority",1,32,1,"",()->c.waypointMaxVisible,v->c.waypointMaxVisible=v);
+            s.toggle("Death waypoint","Save a marker automatically when you die",()->c.waypointAutoDeath,v->c.waypointAutoDeath=v);
+            s.section("Saved markers");
+            s.toggle("Only this server","Filter the manager list; rendering always respects server/dimension",()->c.waypointOnlyCurrentServer,v->{c.waypointOnlyCurrentServer=v;s.build();});
             for(var w:new ArrayList<>(c.savedWaypoints)){
-                s.toggle(w.name+" ["+w.x+", "+w.y+", "+w.z+"]","Saved on "+w.dimension,()->w.enabled,v->w.enabled=v);
-                s.action("Delete "+w.name,"Remove this local marker","Delete",()->{c.savedWaypoints.remove(w);c.save();s.build();});
+                if(c.waypointOnlyCurrentServer&&!w.server.equals(ShoreVisuals.scope(MinecraftClient.getInstance())))continue;
+                s.section("Marker: "+w.name);
+                s.toggle("Visible",w.x+", "+w.y+", "+w.z+" | "+w.dimension,()->w.enabled,v->w.enabled=v);
+                s.field("Rename","","Marker",w.name,v->{w.name=v.substring(0,Math.min(32,v.length()));c.save();});
+                s.color("Marker color","",()->w.color,v->w.color=v);
+                s.action("Track marker","Bring this marker to the top of the screen",w.tracked?"Tracked":"Track",()->{for(var other:c.savedWaypoints)other.tracked=false;w.tracked=true;w.enabled=true;c.waypoints=true;c.save();s.build();});
+                s.action("Copy coordinates","Copies X Y Z to your clipboard","Copy",()->MinecraftClient.getInstance().keyboard.setClipboard(w.x+" "+w.y+" "+w.z));
+                s.action("Delete marker","Click twice to permanently remove this marker","Delete",()->{if(s.deleteWaypoint==w&&System.currentTimeMillis()<s.deleteWaypointUntil){c.savedWaypoints.remove(w);s.deleteWaypoint=null;c.save();s.build();}else{s.deleteWaypoint=w;s.deleteWaypointUntil=System.currentTimeMillis()+3000;ShoreClient.tell("Click Delete again to remove "+w.name);}});
             }
         });
         mod("fps","FPS","Your frames per second.","HUD","gauge",true,()->c.hudFps,v->c.hudFps=v,hudSettings.apply("fps"));
@@ -203,7 +268,7 @@ public final class ShoreScreen extends Screen {
             s.toggle("Shift-drag to move","Hold shift + left-click and sweep to move every stack you touch",()->c.tweakShift,v->c.tweakShift=v);
             s.toggle("Scroll wheel","Scroll down on an item to send one, up to pull one back",()->c.tweakWheel,v->c.tweakWheel=v);
         });
-        mod("shulker","Shulker Preview","Hold Shift while hovering a shulker box to see inside.","Inventory","box",false,()->c.shulkerPreview,v->c.shulkerPreview=v,s->{
+        mod("shulker","Shulker Preview","Integrated contents and lore; Alt+Shift expands, Control locks.","Inventory","box",false,()->c.shulkerPreview,v->c.shulkerPreview=v,s->{
             s.section("Preview");
             s.segment("Show contents","When hovering a shulker box",new String[]{"Hold Shift","Always"},()->c.shulkerMode,v->c.shulkerMode=v);
             s.slider("Size","Scale of the preview",50,200,5,"%",()->c.shulkerScale,v->c.shulkerScale=v);
@@ -211,7 +276,14 @@ public final class ShoreScreen extends Screen {
             s.segment("Border","",new String[]{"Dye color","Accent","None"},()->c.shulkerBorderMode,v->c.shulkerBorderMode=v);
             s.slider("Background opacity","Darkness behind the items",0,100,5,"%",()->c.shulkerBgOpacity,v->c.shulkerBgOpacity=v);
             s.toggle("Show name","The shulker box's name above the items",()->c.shulkerTitle,v->c.shulkerTitle=v);
-            s.toggle("Show empty slots","Draw a faint square for every slot",()->c.shulkerEmptySlots,v->c.shulkerEmptySlots=v);
+            s.toggle("Show empty slots","Draw a slot background for empty slots",()->c.shulkerEmptySlots,v->c.shulkerEmptySlots=v);
+            s.toggle("Modifier hints","Show Alt+Shift and Control instructions",()->c.shulkerHints,v->c.shulkerHints=v);
+            s.toggle("Lock with Left Control","Freeze the tooltip so you can inspect contained items",()->c.shulkerLock,v->c.shulkerLock=v);
+            s.toggle("Contained item tooltips","Hover items while the preview is locked",()->c.shulkerItemTooltip,v->c.shulkerItemTooltip=v);
+            s.section("Colors");
+            s.color("Tooltip background","",()->c.shulkerBackgroundColor,v->c.shulkerBackgroundColor=v);
+            s.color("Tooltip border","Used with the Dye color option",()->c.shulkerBorderColor,v->c.shulkerBorderColor=v);
+            s.color("Grid tint","Undyed boxes; dyed boxes follow their dye",()->c.shulkerGridColor,v->c.shulkerGridColor=v);
         });
 
         mod("antileak","Anti-Leak","Scramble texture rotation patterns used to locate bases.","Utility","cube",false,()->c.antiLeakTextures,v->{
@@ -382,7 +454,7 @@ public final class ShoreScreen extends Screen {
     private void openPage(Page p){page=p;current=null;scroll=scrollTarget=0;focused=null;build();}
 
     @Override protected void init(){build();}
-    @Override public void tick(){if(page==Page.UPDATES&&shownUpdate!=ShoreClient.latestUpdate){shownUpdate=ShoreClient.latestUpdate;build();}}
+    @Override public void tick(){}
 
     void build(){
         rows.clear();keyClicks.clear();listening=null;pendingSection=null;hexInput=null;
@@ -405,6 +477,17 @@ public final class ShoreScreen extends Screen {
                 slider("GUI size","Shrink the entire panel while keeping it centered",50,150,1,"%",()->c.menuScale,v->c.menuScale=v);
                 slider("Font size","Text size independent of the panel size",75,125,1,"%",()->c.menuFontScale,v->c.menuFontScale=v);
                 slider("Payment dialog size","Size of pay-all and other payment confirmations",50,100,1,"%",()->c.paymentScale,v->c.paymentScale=v);
+                section("Menu appearance");
+                color("Panel color","Dark background of the settings window",()->c.menuBackgroundColor,v->c.menuBackgroundColor=v);
+                slider("World dimming","Darken the world while this menu is open",0,90,1,"%",()->c.menuShade,v->c.menuShade=v);
+                toggle("Two-column settings","Use a denser layout; off gives each setting its own row",()->c.menuTwoColumns,v->c.menuTwoColumns=v);
+                section("HUD appearance");
+                color("HUD box color","Background color of HUD boxes",()->c.hudBackgroundColor,v->c.hudBackgroundColor=v);
+                toggle("HUD borders","Thin colored top and bottom edges",()->c.hudBorder,v->c.hudBorder=v);
+                color("Border color","RGB hex",()->c.hudBorderColor,v->c.hudBorderColor=v);
+                slider("HUD padding","Space inside each readout",2,12,1," px",()->c.hudPadding,v->c.hudPadding=v);
+                slider("HUD spacing","Gap between HUD boxes",0,12,1," px",()->c.hudGap,v->c.hudGap=v);
+                slider("Screen margin","Distance from the chosen corner",0,40,1," px",()->c.hudMargin,v->c.hudMargin=v);
                 section("Reset");
                 action("Reset all settings","Restore every ShoreMod option to its default","Reset",this::resetAll);
             }
@@ -412,20 +495,11 @@ public final class ShoreScreen extends Screen {
                 section("ShoreMod keys");
                 keybind("Open ShoreMod","This menu",ShoreClient.menuKey);
                 keybind("Zoom","Hold to zoom in",ShoreTools.zoomKey);
+                keybind("Waypoints","Create or manage your markers",ShoreClient.waypointKey);
                 keybind("Save a clip","Save the last 30 seconds",ShoreClient.clipKey);
                 section("Commands");
                 info("/shore","Open this menu",()->"");
                 info("/shore deaths","List your recent death locations",()->"");
-            }
-            case UPDATES -> {
-                var update=ShoreClient.latestUpdate;
-                section("Version");
-                info("Installed","Running in this client",ShoreClient::version);
-                info("Latest on this server",update==null?"Join a server running the ShoreMod plugin":ShoreClient.updateAvailable()?"An update is ready to install":"You're up to date",()->update==null?"Unknown":update.version());
-                section("Get updates");
-                action("Check for updates","Ask this server for the latest version","Check",ShoreClient::checkUpdates);
-                if(update!=null&&!update.url().isEmpty())action("Download update","Opens the server's download page","Open",ShoreClient::openUpdate);
-                else info("Download link","Ask ShoreSMP staff for the latest client JAR",()->"Not set");
             }
             default -> {}
         }
@@ -545,7 +619,7 @@ public final class ShoreScreen extends Screen {
         Config c=ShoreClient.config,d=new Config();
         boolean reloadTextures=c.antiLeakTextures;
         for(var f:Config.class.getFields()){
-            if(java.lang.reflect.Modifier.isStatic(f.getModifiers())||f.getName().equals("deaths")||f.getName().equals("chatDefaultsVersion"))continue;
+            if(java.lang.reflect.Modifier.isStatic(f.getModifiers())||f.getName().equals("deaths")||f.getName().equals("chatDefaultsVersion")||f.getName().equals("savedWaypoints"))continue;
             try{Object v=f.get(d);f.set(c,v instanceof List<?> l?new ArrayList<>(l):v);}catch(ReflectiveOperationException ignored){}
         }
         c.save();ShoreClient.recorder.clear();
@@ -651,13 +725,13 @@ public final class ShoreScreen extends Screen {
         hits.clear();tooltip=null;clip=null;
         scroll+=(scrollTarget-scroll)*Math.min(1,dt*14);if(Math.abs(scrollTarget-scroll)<0.3f)scroll=scrollTarget;
 
-        ui.rect(0,0,ui.W,ui.H,0x55000000);
+        ui.rect(0,0,ui.W,ui.H,(Math.round(ShoreClient.config.menuShade*2.55f)<<24));
         float cw=Math.min(ui.W-36,800),cx=(ui.W-cw)/2,totalH=Math.min(ui.H-24,420);
         float barY=(ui.H-totalH)/2,tabsY=barY+40,panelY=tabsY+46,panelH=totalH-86;
         drawTopBar(cx,cw,barY,tabsY);
 
-        int alpha=Math.round(ShoreClient.config.panelOpacity*2.4f);
-        ui.round(cx,panelY,cw,panelH,12,(alpha<<24)|0x0D0F12);
+        int alpha=Math.round(ShoreClient.config.panelOpacity*2.55f);
+        ui.round(cx,panelY,cw,panelH,12,(alpha<<24)|ShoreClient.config.menuBackgroundColor);
         if(page==Page.GRID)drawGrid(cx,panelY,cw,panelH,dt);else drawSettings(cx,panelY,cw,panelH,dt);
 
         if(tooltip!=null){
@@ -689,11 +763,11 @@ public final class ShoreScreen extends Screen {
         ui.icon("grid",x+20,tabsY+12,14,fg);
         ui.text("MOD MENU",true,13,x+43,tabsY+12.5f,fg);
         x+=pillW+10;
-        Object[][] tabs={{"gear","General settings",Page.GENERAL},{"keyboard","Controls",Page.CONTROLS},{"download","Updates",Page.UPDATES}};
+        Object[][] tabs={{"gear","General settings",Page.GENERAL},{"keyboard","Controls",Page.CONTROLS}};
         for(Object[] tab:tabs){
             Page p=(Page)tab[2];
             topButton(x,tabsY,h,(String)tab[0],(String)tab[1],page==p,false,()->openPage(p));
-            if(p==Page.UPDATES&&ShoreClient.updateAvailable())ui.circle(x+h-9,tabsY+9,8,HEART);
+
             x+=h+10;
         }
         float right=cx+cw;
@@ -735,7 +809,7 @@ public final class ShoreScreen extends Screen {
 
         // cards
         float top=cy+ch+16,viewH=py+ph-10-top,gap=14;
-        int cols=Math.max(2,(int)((iw+gap)/(168+gap)));
+        int cols=Math.max(2,(int)((iw+gap)/(190+gap)));
         float cardW=(iw-8-gap*(cols-1))/cols,cardH=Math.clamp(cardW*0.8f,150,220);
         List<Module> list=visibleModules();
         int rowsN=(list.size()+cols-1)/cols;
@@ -798,13 +872,16 @@ public final class ShoreScreen extends Screen {
     }
 
     // ------------------------------------------------------------------ compact settings pages
-    private static final float FS=12.5f,ROW_H=34;
+    private static final float FS=12.5f,ROW_H=42;
     private final Set<String> collapsed=new HashSet<>();
     private static final Map<String,String[]> RESET_FIELDS=Map.ofEntries(
         Map.entry("performance",new String[]{"hudItemIcons"}),
         Map.entry("blockoverlay",new String[]{"blockColor","blockOpacity","outlineWidth","blockInfo"}),
         Map.entry("betterf3",new String[]{"debugCoordinates","debugTarget","debugMemory"}),
-        Map.entry("guitweaks",new String[]{"inventoryOpacity","guiNoDim"}),
+        Map.entry("guitweaks",new String[]{"inventoryOpacity","guiNoDim","guiTintColor"}),
+        Map.entry("motionblur",new String[]{"blurStrength","blurSamples","blurMovingOnly","blurFps","blurAutoProtect","blurMinFps","blurMemoryMb"}),
+        Map.entry("crystals",new String[]{"crystalColor","crystalRainbow","crystalStyle","crystalOpacity","crystalSize","crystalSpeed","crystalBob","crystalBase","crystalBeam"}),
+        Map.entry("days",new String[]{"dayLabel","dayOneBased","dayOffset","dayShowTime"}),
         Map.entry("hitboxes",new String[]{"hitboxColor","hitboxPlayersOnly","hitboxRange"}),
         Map.entry("totemtweaks",new String[]{"heldTotemSize","heldTotemOpacity","popTotemSize","popTotemOpacity"}),
         Map.entry("waypoints",new String[]{"waypointColor","waypointRange","waypointScale"}),
@@ -857,9 +934,9 @@ public final class ShoreScreen extends Screen {
             boolean sh=hit(sx,hy+(hh-18)/2,36,18,()->toggleModule(m));
             drawSwitch(sx,hy+hh/2,m.get().getAsBoolean(),true,sh,m.id());
         }else{
-            String title=switch(page){case GENERAL->"General";case CONTROLS->"Controls";case UPDATES->"Updates";default->"";};
-            String sub=switch(page){case GENERAL->"Theme and menu settings";case CONTROLS->"Keybinds and commands";case UPDATES->"Your ShoreMod version";default->"";};
-            String ic=switch(page){case GENERAL->"gear";case CONTROLS->"keyboard";case UPDATES->"download";default->"grid";};
+            String title=switch(page){case GENERAL->"General";case CONTROLS->"Controls";default->"";};
+            String sub=switch(page){case GENERAL->"Theme and menu settings";case CONTROLS->"Keybinds and commands";default->"";};
+            String ic=switch(page){case GENERAL->"gear";case CONTROLS->"keyboard";default->"grid";};
             ui.icon(ic,ix+4,hy+(hh-20)/2,20,0xFFFFFFFF);
             ui.text(title,true,14,ix+34,hy+(hh-14)/2,TEXT);
             ui.text(sub,false,FS,ix+34+ui.width(title,true,14)+12,hy+(hh-FS)/2,MUTED,iw-200);
@@ -877,7 +954,7 @@ public final class ShoreScreen extends Screen {
     private static boolean wide(Row r){return r.kind==FIELD||r.kind==ACCENT;}
     /** Single-line rows that need the full width, e.g. a choice of more than three buttons. */
     private static boolean full(Row r){return wide(r)||(r.kind==SEGMENT&&r.options.length>3);}
-    private static float height(Row r){return wide(r)?64:ROW_H;}
+    private static float height(Row r){return wide(r)?72:ROW_H;}
     /** Collapsible sections, each a card with settings flowing into two columns. Returns content height. */
     private float layoutGrid(float x,float y0,float w,boolean draw){
         float y=y0;int i=0;String key=page==Page.MODULE?current.id():page.name();
@@ -897,12 +974,12 @@ public final class ShoreScreen extends Screen {
                 List<Row[]> lines=new ArrayList<>();Row pending=null;
                 for(int k=i;k<j;k++){
                     Row r=rows.get(k);
-                    if(full(r)){if(pending!=null){lines.add(new Row[]{pending,null});pending=null;}lines.add(new Row[]{r});}
+                    if(!ShoreClient.config.menuTwoColumns||full(r)){if(pending!=null){lines.add(new Row[]{pending,null});pending=null;}lines.add(new Row[]{r});}
                     else if(pending==null)pending=r;
                     else{lines.add(new Row[]{pending,r});pending=null;}
                 }
                 if(pending!=null)lines.add(new Row[]{pending,null});
-                float pad=16,cardH=pad*2-8;for(Row[] l:lines)cardH+=height(l[0]);
+                float pad=20,cardH=pad*2-8;for(Row[] l:lines)cardH+=height(l[0]);
                 if(draw){
                     ui.outline(x,y,w,cardH,9,EDGE,CARD);
                     float ly=y+pad-4,colGap=36,colW=(w-pad*2-colGap)/2;
@@ -916,7 +993,7 @@ public final class ShoreScreen extends Screen {
                         ly+=lh;
                     }
                 }
-                y+=cardH+14;
+                y+=cardH+22;
             }
             i=j;
         }

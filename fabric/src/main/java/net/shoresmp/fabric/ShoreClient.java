@@ -41,7 +41,7 @@ public final class ShoreClient implements ClientModInitializer {
     public static void checkUpdates(){nextUpdateCheck=0;}
     public static void openUpdate(){if(latestUpdate!=null&&!latestUpdate.url().isEmpty())net.minecraft.util.Util.getOperatingSystem().open(java.net.URI.create(latestUpdate.url()));}
     private Double originalChatOpacity;
-    public static KeyBinding menuKey, clipKey;
+    public static KeyBinding menuKey, clipKey,waypointKey;
     /** Localized name of the key currently bound, e.g. "F8", for hints in the UI. */
     public static String keyName(KeyBinding key){return key==null||key.isUnbound()?"Unbound":key.getBoundKeyLocalizedText().getString();}
     private static final KeyBinding.Category CATEGORY = KeyBinding.Category.create(Identifier.of("shoremod", "controls"));
@@ -49,6 +49,7 @@ public final class ShoreClient implements ClientModInitializer {
         config = Config.load(); recorder = new ClipRecorder();
         var menu = menuKey = key("menu", GLFW.GLFW_KEY_RIGHT_SHIFT);
         var clip = clipKey = key("clip", GLFW.GLFW_KEY_F9);
+        waypointKey=key("waypoint",GLFW.GLFW_KEY_M);
         ShoreTools.zoomKey = key("zoom", GLFW.GLFW_KEY_C);
         ShoreHud.register();
         ShoreTools.register();
@@ -103,6 +104,7 @@ public final class ShoreClient implements ClientModInitializer {
             ShoreTools.tick(client);
             ShorePvp.tick(client);
             ShoreVisuals.tick(client);
+            while(waypointKey.wasPressed()){var screen=new ShoreScreen(null);screen.showModule("waypoints");openNextTick(()->screen);}
             if (config.extendedChat) client.options.getTextBackgroundOpacity().setValue(config.chatOpacity);
             else if (originalChatOpacity != null) client.options.getTextBackgroundOpacity().setValue(originalChatOpacity);
         });

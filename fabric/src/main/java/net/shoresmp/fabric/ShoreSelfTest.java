@@ -79,7 +79,7 @@ final class ShoreSelfTest {
             step(10,c->shot(c,"gui"+s+"_module_crosshair_image"));
             step(2,c->{ShoreClient.config.crosshairMode=0;var sc=(ShoreScreen)c.currentScreen;sc.showModule("crosshair");sc.mouseScrolled(sc.width*0.5,sc.height*0.7,0,-30);});
             step(20,c->shot(c,"gui"+s+"_module_crosshair_scrolled"));
-            for(String p:new String[]{"GENERAL","CONTROLS","UPDATES"}){
+            for(String p:new String[]{"GENERAL","CONTROLS"}){
                 step(2,c->((ShoreScreen)c.currentScreen).showPage(p));
                 step(10,c->shot(c,"gui"+s+"_page_"+p.toLowerCase()));
             }
@@ -220,6 +220,7 @@ final class ShoreSelfTest {
     private static void planVisuals(){
         step(2,c->{
             c.setScreen(null);var cfg=ShoreClient.config;
+            ShoreMotionBlur.verifyBackend();cfg.motionBlur=true;cfg.blurMovingOnly=false;cfg.blurAutoProtect=false;cfg.customCrystals=true;cfg.dayCounter=true;
             cfg.recording=true;cfg.lowOverhead=true;long before=ShoreClient.recorder.captureRequests();ShoreClient.recorder.capture();ShoreClient.recorder.capture();
             log(verdict(before==ShoreClient.recorder.captureRequests())+" performance mode makes zero framebuffer capture requests");cfg.recording=false;
             cfg.savedWaypoints.clear();cfg.waypointName="Visual test";cfg.waypointCoordinates="100 64 -100";
@@ -233,6 +234,7 @@ final class ShoreSelfTest {
                 var look=sp.getRotationVec(1);var pos=sp.getEyePos().add(look.multiply(3));var w=sp.getEntityWorld();
                 w.setBlockState(net.minecraft.util.math.BlockPos.ofFloored(pos),Blocks.STONE.getDefaultState());
                 var side=pos.add(look.z*1.5,-1,-look.x*1.5);w.spawnEntity(new net.minecraft.entity.decoration.ArmorStandEntity(w,side.x,side.y,side.z));
+                var crystalPos=pos.add(-look.z*1.5,-1,look.x*1.5);w.spawnEntity(new net.minecraft.entity.decoration.EndCrystalEntity(w,crystalPos.x,crystalPos.y,crystalPos.z));
             });
             boolean oldBadges=cfg.badges,oldTab=cfg.badgeTab;
             cfg.badges=true;cfg.badgeTab=true;
@@ -244,9 +246,9 @@ final class ShoreSelfTest {
             log(verdict(!c.inGameHud.getPlayerListHud().getPlayerName(ownEntry).getString().contains("\uE000"))+" badge toggle still hides own logo");
             cfg.badges=oldBadges;cfg.badgeTab=oldTab;
             String playerName=c.player.getName().getString();
-            for(String header:java.util.List.of("[Royal] "+playerName+" \u276f hello","[12:30] [Captain] "+playerName+" \u2192 hello","<"+playerName+"> hello")){
+            for(String header:java.util.List.of("[Seaman] "+playerName+"\nhello world","[Royal] "+playerName+" \u276f hello","[12:30] [Captain] "+playerName+" \u2192 hello","<"+playerName+"> hello")){
                 var decorated=ShoreChatHeads.decorate(net.minecraft.text.Text.literal(header));
-                log(verdict(decorated.getString().startsWith("   "))+" chat head reserves space for formatted sender "+header);
+                log(verdict(ShoreChatHeads.isDecorated(decorated))+" chat head reserves space for formatted sender "+header);
                 c.inGameHud.getChatHud().addMessage(net.minecraft.text.Text.literal(header));
                 try{
                     var field=ShoreChatHeads.class.getDeclaredField("LINES");field.setAccessible(true);
@@ -254,14 +256,19 @@ final class ShoreSelfTest {
                 }catch(Exception e){throw new IllegalStateException(e);}
             }
             var message=net.minecraft.text.Text.literal("<"+c.player.getName().getString()+"> Chat heads test");
-            log(verdict(ShoreChatHeads.decorate(message).getString().startsWith("   "))+" chat heads identify the sender and reserve space");
+            log(verdict(ShoreChatHeads.isDecorated(ShoreChatHeads.decorate(message)))+" chat heads identify the sender and reserve space");
             c.inGameHud.getChatHud().addMessage(message);
         });
         step(15,c->{
             log(verdict(c.crosshairTarget instanceof net.minecraft.util.hit.BlockHitResult h&&h.getType()==net.minecraft.util.hit.HitResult.Type.BLOCK)+" block overlay renders a real targeted block");
             try{var f=ShoreVisuals.class.getDeclaredField("entities");f.setAccessible(true);log(verdict(!((java.util.List<?>)f.get(null)).isEmpty())+" hitbox overlay has a visible nearby entity");}catch(Exception e){throw new IllegalStateException(e);}
             c.gameRenderer.showFloatingItem(new ItemStack(Items.TOTEM_OF_UNDYING));});
-        step(3,c->shot(c,"visual_modules"));
+        step(3,c->{
+            shot(c,"visual_modules");
+            log(verdict(ShoreMotionBlur.frameCount()>0)+" motion blur retains GPU world history");
+            log(verdict(ShoreCrystals.ready())+" custom crystal texture reaches the actual renderer");
+            ShoreClient.config.motionBlur=false;ShoreMotionBlur.clear();
+        });
         step(3,c->{c.debugHudEntryList.setF3Enabled(true);});
         step(10,c->shot(c,"better_f3"));
         step(2,c->{c.debugHudEntryList.setF3Enabled(false);c.setScreen(new net.minecraft.client.gui.screen.ingame.InventoryScreen(c.player));});

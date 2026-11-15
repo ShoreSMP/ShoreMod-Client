@@ -45,8 +45,28 @@ public final class Config {
     public String waypointName="Home", waypointCoordinates="";
     public List<Waypoint> savedWaypoints=new ArrayList<>();
     public static final class Waypoint {
-        public String name="Waypoint",server="",dimension=""; public int x,y,z,color=0x50A7FF; public boolean enabled=true;
+        public String name="Waypoint",server="",dimension=""; public int x,y,z,color=0x50A7FF; public boolean enabled=true,tracked=false;
     }
+    // Visual customization (all optional; no server state changes).
+    public boolean motionBlur=false, blurMovingOnly=true, blurAutoProtect=true;
+    public int blurStrength=35, blurSamples=2, blurFps=60, blurMinFps=45, blurMemoryMb=96;
+    public boolean customCrystals=false, crystalRainbow=false, crystalBase=true, crystalBeam=true;
+    public int crystalColor=0xB56CFF, crystalOpacity=100, crystalSize=100, crystalSpeed=100, crystalBob=100, crystalStyle=0;
+    public boolean dayCounter=false, dayOneBased=true, dayShowTime=false;
+    public int dayOffset=0;
+    public String dayLabel="Day";
+    public int hitboxWidth=1, hitboxOpacity=100, hitboxLimit=32, hitboxStyle=0, hitboxEyeColor=0xFF5555, hitboxLookColor=0x55CCFF;
+    public boolean hitboxEyes=false, hitboxLook=false, hitboxTargetColor=true, hitboxDistanceFade=false;
+    public int hitboxTargetRgb=0xFF5555;
+    public int guiTintColor=0xFFFFFF, menuBackgroundColor=0x0D0F12, hudBackgroundColor=0x101217, hudBorderColor=0x50A7FF;
+    public boolean hudBorder=false,menuTwoColumns=false,menuDefaults140=false;
+    public int hudPadding=5, hudGap=2, hudMargin=4, menuShade=33;
+    public boolean waypointDistances=true, waypointCoordinatesShown=false, waypointBackground=true, waypointOffscreen=true;
+    public boolean waypointCompass=true, waypointAutoDeath=false, waypointOnlyCurrentServer=true;
+    public int waypointOpacity=75, waypointMaxVisible=16;
+    public int shulkerGridColor=0x704A78, shulkerBorderColor=0x500078, shulkerBackgroundColor=0x100010;
+    public boolean shulkerHints=true, shulkerLock=true, shulkerItemTooltip=true;
+    public boolean tooltipDefaults140=false;
     // Tools
     public boolean zoomScroll = true, zoomSmooth = true, durabilityAlert = true, deathLog = true, reconnectButton = true, autoReconnect = false;
     public int zoomLevel = 4, durabilityThreshold = 10, autoReconnectDelay = 10;
@@ -106,6 +126,20 @@ public final class Config {
         Config result = new Config(); result.save(); return result;
     }
     private void validate() {
+        if(!menuDefaults140){panelOpacity=100;menuBackgroundColor=0x07090C;menuShade=45;menuDefaults140=true;}
+        if(!tooltipDefaults140){shulkerMode=1;tooltipDefaults140=true;}
+        blurStrength=Math.clamp(blurStrength,0,85);blurSamples=Math.clamp(blurSamples,1,4);
+        blurFps=Math.clamp(blurFps,15,120);blurMinFps=Math.clamp(blurMinFps,15,120);blurMemoryMb=Math.clamp(blurMemoryMb,16,256);
+        crystalColor&=0xFFFFFF;crystalOpacity=Math.clamp(crystalOpacity,5,100);crystalSize=Math.clamp(crystalSize,25,200);
+        crystalSpeed=Math.clamp(crystalSpeed,0,300);crystalBob=Math.clamp(crystalBob,0,200);crystalStyle=Math.clamp(crystalStyle,0,2);
+        dayOffset=Math.clamp(dayOffset,-1000000,1000000);if(dayLabel==null)dayLabel="Day";dayLabel=dayLabel.substring(0,Math.min(24,dayLabel.length()));
+        hitboxWidth=Math.clamp(hitboxWidth,1,4);hitboxOpacity=Math.clamp(hitboxOpacity,5,100);hitboxLimit=Math.clamp(hitboxLimit,1,64);hitboxStyle=Math.clamp(hitboxStyle,0,2);
+        hitboxEyeColor&=0xFFFFFF;hitboxLookColor&=0xFFFFFF;hitboxTargetRgb&=0xFFFFFF;
+        guiTintColor&=0xFFFFFF;menuBackgroundColor&=0xFFFFFF;hudBackgroundColor&=0xFFFFFF;hudBorderColor&=0xFFFFFF;
+        hudPadding=Math.clamp(hudPadding,2,12);hudGap=Math.clamp(hudGap,0,12);hudMargin=Math.clamp(hudMargin,0,40);menuShade=Math.clamp(menuShade,0,90);
+        waypointOpacity=Math.clamp(waypointOpacity,0,100);waypointMaxVisible=Math.clamp(waypointMaxVisible,1,32);
+        shulkerGridColor&=0xFFFFFF;shulkerBorderColor&=0xFFFFFF;shulkerBackgroundColor&=0xFFFFFF;
+
         if(!blueDefaultApplied){if(accent==0x35DBD2)accent=0x50A7FF;blueDefaultApplied=true;}
         if(!darkHudDefaultApplied){if(hudBgOpacity==50)hudBgOpacity=85;darkHudDefaultApplied=true;}
         if(!compactGuiDefaultApplied){if(menuScale==100)menuScale=85;compactGuiDefaultApplied=true;}
@@ -168,6 +202,6 @@ public final class Config {
             Files.move(temp, PATH, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) { ShoreClient.LOG.error("Could not save ShoreMod settings", e); }
     }
-    public int panelColor() { return ((int)(panelOpacity * 2.55) << 24) | 0x0D1016; }
+    public int panelColor() { return ((int)(panelOpacity * 2.55) << 24) | menuBackgroundColor; }
 }
 

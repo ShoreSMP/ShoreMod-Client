@@ -22,8 +22,8 @@ public final class ShoreCompatSmoke {{
    if(!({current} instanceof ShoreScreen)&&!({current} instanceof CrosshairEditorScreen)&&{overlay}==null&&System.nanoTime()-lastOpen>1_000_000_000L){{lastOpen=System.nanoTime();ShoreClient.openNextTick(()->new ShoreScreen({current}));}}
    if({current} instanceof CrosshairEditorScreen&&{overlay}==null){{frames++;if(frames>=110){{done=true;ShoreClient.LOG.info("SHORE_COMPAT_SMOKE_PASS target={target}");{stop};}}}}
    if({current} instanceof ShoreScreen&&{overlay}==null){{
-    if(frames>=20&&stage==0){{((ShoreScreen){current}).showModule("fullbright");stage++;}}
-    if(frames>=40&&stage==1){{((ShoreScreen){current}).showModule("crosshair");stage++;}}
+    if(frames>=20&&stage==0){{((ShoreScreen){current}).showModule("motionblur");ShoreMotionBlur.verifyBackend();stage++;}}
+    if(frames>=40&&stage==1){{((ShoreScreen){current}).showModule("crystals");stage++;}}
     if(frames>=60&&stage==2){{((ShoreScreen){current}).showPage("GENERAL");stage++;}}
     if(frames>=80&&stage==3){{ShoreClient.openNextTick(()->new CrosshairEditorScreen(null));stage++;}}
    }}
