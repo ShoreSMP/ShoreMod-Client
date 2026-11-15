@@ -2,7 +2,7 @@
 
 Fabric client mod for Minecraft **1.21.5, 1.21.8, 1.21.10, 1.21.11, 26.1, 26.2, and 26.3**.
 
-[Download ShoreMod 1.3.2](https://github.com/ShoreSMP/ShoreMod-Client/releases/download/v1.3.2/ShoreMod-1.3.2.jar) | [All releases](https://github.com/ShoreSMP/ShoreMod-Client/releases)
+[Download ShoreMod 1.3.3](https://github.com/ShoreSMP/ShoreMod-Client/releases/download/v1.3.3/ShoreMod-1.3.3.jar) | [All releases](https://github.com/ShoreSMP/ShoreMod-Client/releases)
 
 ## Install
 
@@ -25,7 +25,7 @@ Open settings with **Right Shift** or **/shore**. New visual modules are optiona
 - Chat heads with size and outer-layer controls, plus existing chat history, stacking, timestamps, and mentions. Heads appear on new messages with recognized player-name prefixes and use Minecraft-managed skins.
 - Existing HUD customization, fullbright, zoom, crosshair painter/imports, inventory tools, and optional local clip recorder.
 
-Recording is disabled on the first upgrade to 1.3.2. Enabling it explicitly exits performance mode. Exact FPS gains depend on hardware, recording settings, and other mods.
+Recording is disabled on the first upgrade to 1.3.3. Enabling it explicitly exits performance mode. Exact FPS gains depend on hardware, recording settings, and other mods.
 
 ## Build
 
