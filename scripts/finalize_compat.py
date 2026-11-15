@@ -54,7 +54,7 @@ public abstract class CrystalModelLayerMixin {
   if(ShoreClient.config!=null&&ShoreClient.config.customCrystals&&texture.toString().equals("shoremod:custom_end_crystal"))cir.setReturnValue(RenderTypes.entityTranslucent(texture));
  }
 }
-""".replace('IDENTIFIER',identifier).replace('RENDER_TYPE',render_type).replace('FACTORY',factory).replace('METHOD',method).replace('ID',identifier.rsplit('.',1)[-1]).replace('TYPE',render_type.rsplit('.',1)[-1])
+""".replace('IDENTIFIER',identifier).replace('RENDER_TYPE',render_type).replace('FACTORY',factory).replace('METHOD',method+'(L'+identifier.replace('.','/')+';)L'+render_type.replace('.','/')+';').replace('ID',identifier.rsplit('.',1)[-1]).replace('TYPE',render_type.rsplit('.',1)[-1])
  (root/'fabric/src/main/java/net/shoresmp/fabric/mixin/CrystalModelLayerMixin.java').write_text(generated,encoding='utf-8')
  meta_file=root/'fabric/src/main/resources/shoremod.mixins.json'
  meta=json.loads(meta_file.read_text());meta['client'].append('CrystalModelLayerMixin');meta_file.write_text(json.dumps(meta,indent=2))
@@ -70,7 +70,21 @@ values={'SHORE_CRYSTAL_RENDER':render[0][0]+render[0][1],'SHORE_CRYSTAL_STATE':u
 for key,value in values.items():
  code,n=re.subn(r'(String '+key+r'=)"[^"]*"',lambda m:m[1]+json.dumps(value),code)
  assert n==1,key
+# Write selector literals into annotations too: mapping migration may inline constants.
+selectors={'shore$crystalState':values['SHORE_CRYSTAL_STATE'],'shore$crystalScale':values['SHORE_CRYSTAL_RENDER'],'shore$crystalScaleEnd':values['SHORE_CRYSTAL_RENDER'],'shore$crystalLayer':values['SHORE_CRYSTAL_RENDER'],'shore$crystalBob':values['SHORE_CRYSTAL_BOB']+'(F)F'}
+for handler,selector in selectors.items():
+ position=code.index(' '+handler+'(')
+ start=max(code.rfind('@Inject(',0,position),code.rfind('@ModifyExpressionValue(',0,position))
+ end=code.index('\n',start)
+ line=code[start:end]
+ line,n=re.subn(r'method=(?:"[^"]*"|[\w$]+)',lambda m:'method='+json.dumps(selector),line,count=1)
+ assert n==1,(handler,line)
+ if handler=='shore$crystalLayer':
+  line,n=re.subn(r'target=(?:"[^"]*"|[\w$]+)',lambda m:'target='+json.dumps(values['SHORE_CRYSTAL_LAYER']),line,count=1)
+  assert n==1,line
+ code=code[:start]+line+code[end:]
 file.write_text(code,encoding='utf-8')
+print('CRYSTAL_MIXIN_SOURCE\n'+code)
 print('Resolved custom crystal hooks:',values)
 
 if not target.startswith('26.'):
