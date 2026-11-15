@@ -5,6 +5,7 @@ import java.util.regex.Pattern;
 public final class ChatSenders {
  private static final Pattern FORMAT=Pattern.compile("[\\u00a7&][0-9a-fk-orx]",Pattern.CASE_INSENSITIVE);
  private static final Pattern HEADER=Pattern.compile("(?<![A-Za-z0-9_.])([.]?[A-Za-z0-9_]{1,16})\\s*(->|[:>\\u00bb\\u203a\\u2192\\u279c\\u276f\\u27a4\\u27a0\\u27a2\\u2022|])");
+ private static final Pattern LAST_NAME=Pattern.compile("(?<![A-Za-z0-9_.])([.]?[A-Za-z0-9_]{1,16})(?![A-Za-z0-9_])[^A-Za-z0-9_]*$");
  public record Match(String alias,int start,int end){}
  private ChatSenders(){}
  public static Match match(String message,Collection<String> aliases){
@@ -20,14 +21,9 @@ public final class ChatSenders {
    if(!matcher.group(2).equals("|"))return null;
   }
   if(newline>=0){
-   Match best=null;
-   for(String alias:aliases){
-    var token=Pattern.compile("(?<![A-Za-z0-9_.])"+Pattern.quote(alias)+"(?![A-Za-z0-9_])",Pattern.CASE_INSENSITIVE).matcher(header);
-    while(token.find()){
-     if(header.substring(token.end()).matches("[^A-Za-z0-9_]*")&&(best==null||token.start()>best.start()))best=new Match(alias,token.start(),token.end());
-    }
-   }
-   return best;
+   var token=LAST_NAME.matcher(header);
+   if(token.find())for(String alias:aliases)if(alias.equalsIgnoreCase(token.group(1)))return new Match(alias,token.start(1),token.end(1));
+   return null;
   }
   return null;
  }

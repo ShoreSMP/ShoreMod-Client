@@ -265,21 +265,13 @@ if target.startswith('26.'):
  file.write_text(code,encoding='utf-8')
 
 if target.startswith('26.'):
- world_api=subprocess.run(['javap','-p','-classpath',classpath,'net.minecraft.client.multiplayer.ClientLevel','net.minecraft.world.level.Level','net.minecraft.world.level.storage.LevelData'],capture_output=True,text=True).stdout
- print('WORLD_CLOCK_API\n'+world_api)
- expression=None
- if re.search(r'\blong getDayTime\(\);',world_api):
-  level_data=subprocess.run(['javap','-p','-classpath',classpath,'net.minecraft.world.level.storage.LevelData'],capture_output=True,text=True).stdout
-  expression='client.level.getLevelData().getDayTime()' if 'getDayTime()' in level_data else 'client.level.getDayTime()'
- if expression is None:
-  clock_classes=set()
-  for entry in cp:
-   if not entry.endswith('.jar') or not Path(entry).is_file():continue
-   with zipfile.ZipFile(entry) as jar:
-    for name in jar.namelist():
-     if name.startswith('net/minecraft/world/') and 'clock' in name.lower() and '$' not in name and name.endswith('.class'):clock_classes.add(name[:-6].replace('/','.'))
-  for name in sorted(clock_classes):
-   detail=subprocess.run(['javap','-p','-classpath',classpath,name],capture_output=True,text=True).stdout
-   print('CLOCK_TYPE '+name+'\n'+detail)
-  raise RuntimeError('Resolve the server world-day clock for '+target)
- file=root/'fabric/src/main/java/net/shoresmp/fabric/ShoreHud.java';code=file.read_text(encoding='utf-8').replace('client.level.getDayTime()',expression);file.write_text(code,encoding='utf-8')
+ world_api=subprocess.run(['javap','-p','-classpath',classpath,'net.minecraft.client.multiplayer.ClientLevel','net.minecraft.world.level.Level','net.minecraft.world.level.storage.LevelData'],capture_output=True,text=True,check=True).stdout
+ if re.search(r'\blong getOverworldClockTime\(\);',world_api):
+  expression='client.level.getOverworldClockTime()'
+ elif re.search(r'\blong getDayTime\(\);',world_api):
+  expression='client.level.getDayTime()'
+ else:raise RuntimeError('Cannot resolve the server world-day clock for '+target+'\n'+world_api)
+ file=root/'fabric/src/main/java/net/shoresmp/fabric/ShoreHud.java'
+ code=file.read_text(encoding='utf-8').replace('client.level.getDayTime()',expression)
+ file.write_text(code,encoding='utf-8')
+ print('Resolved day counter clock:',expression)
