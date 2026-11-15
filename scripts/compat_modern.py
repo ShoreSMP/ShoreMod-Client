@@ -27,14 +27,14 @@ for p in src.rglob('*.java'):
  if target=='26.3':
   s=s.replace('com.mojang.blaze3d.textures.', 'com.mojang.renderpearl.api.textures.')
   s=s.replace('import org.lwjgl.glfw.GLFW;','')
-  s=re.sub(r'(?:org.lwjgl.glfw.)?GLFW.GLFW_KEY_(\w+)',lambda m:'com.mojang.blaze3d.platform.InputConstants.KEY_'+{'RIGHT_SHIFT':'RSHIFT','LEFT_SHIFT':'LSHIFT','LEFT_CONTROL':'LCONTROL','RIGHT_CONTROL':'RCONTROL','ENTER':'RETURN','KP_ENTER':'NUMPADENTER'}.get(m[1],m[1]),s)
+  s=re.sub(r'(?:org.lwjgl.glfw.)?GLFW.GLFW_KEY_(\w+)',lambda m:'com.mojang.blaze3d.platform.InputConstants.KEY_'+{'RIGHT_SHIFT':'RSHIFT','LEFT_SHIFT':'LSHIFT','LEFT_ALT':'LALT','RIGHT_ALT':'RALT','LEFT_CONTROL':'LCONTROL','RIGHT_CONTROL':'RCONTROL','ENTER':'RETURN','KP_ENTER':'NUMPADENTER'}.get(m[1],m[1]),s)
   s=s.replace('GLFW.GLFW_MOD_CONTROL','org.lwjgl.sdl.SDLKeycode.SDL_KMOD_CTRL')
   s=s.replace('InputConstants.Type.KEYSYM','InputConstants.Type.KEYBOARD')
   s=s.replace('InputConstants.isKeyDown(client.getWindow(),','InputConstants.isKeyDown(')
   s=s.replace('input.scancode()', 'input.keycode()')
   s=s.replace('input.key()==256','input.key()==com.mojang.blaze3d.platform.InputConstants.KEY_ESCAPE')
   s=s.replace('org.lwjgl.glfw.GLFW.glfwGetMouseButton(window,key.getValue())==org.lwjgl.glfw.GLFW.GLFW_PRESS','(org.lwjgl.sdl.SDLMouse.SDL_GetMouseState((java.nio.FloatBuffer)null,(java.nio.FloatBuffer)null)&(1<<(key.getValue()-1)))!=0')
-  s=re.sub(r'GLFW.glfwGetKey\(w,([^)]*)\)!=GLFW.GLFW_PRESS',r'!com.mojang.blaze3d.platform.InputConstants.isKeyDown(\1)',s)
+  s=re.sub(r'GLFW\.glfwGetKey\((?:w|window),([^)]*)\)(==|!=)GLFW\.GLFW_PRESS',lambda m:('!' if m[2]=='!=' else '')+'com.mojang.blaze3d.platform.InputConstants.isKeyDown('+m[1]+')',s)
   s=s.replace('net.minecraft.util.Util.getPlatform().openUri(', 'com.mojang.blaze3d.Blaze3D.openUri(').replace('net.minecraft.util.Util.getPlatform().openPath(', 'com.mojang.blaze3d.Blaze3D.openPath(')
   s=s.replace('Util.getPlatform().openUri(', 'com.mojang.blaze3d.Blaze3D.openUri(').replace('Util.getPlatform().openPath(', 'com.mojang.blaze3d.Blaze3D.openPath(')
   if p.name=='ShoreScreen.java':
