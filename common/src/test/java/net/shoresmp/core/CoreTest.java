@@ -122,7 +122,7 @@ public final class CoreTest {
             try { Payments.amount(invalid); throw new AssertionError("amount accepted"); } catch (IllegalArgumentException expected) { checks++; }
         }
         var triggers = List.of("blacklisted modifications", "bug abusing", "banned");
-        check(PunishmentMatcher.matches("cBLACKLISTED MODIFICATIONS", triggers), "formatted trigger");
+        check(PunishmentMatcher.matches("§cBLACKLISTED MODIFICATIONS", triggers), "formatted trigger");
         check(!PunishmentMatcher.matches("You are unbanned", triggers), "word boundaries");
         var personalReasons=List.of("blacklisted modifications","bug abusing","cheating","exploiting","banned");
         for(String message:List.of(
@@ -182,5 +182,4 @@ public final class CoreTest {
         System.out.println("PASS: " + checks + " core checks");
     }
 }
-
 
