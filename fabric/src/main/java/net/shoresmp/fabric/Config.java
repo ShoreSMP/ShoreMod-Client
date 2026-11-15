@@ -65,7 +65,7 @@ public final class Config {
     public boolean waypointCompass=true, waypointAutoDeath=false, waypointOnlyCurrentServer=true;
     public int waypointOpacity=75, waypointMaxVisible=16;
     public int shulkerGridColor=0x704A78, shulkerBorderColor=0x500078, shulkerBackgroundColor=0x100010;
-    public boolean shulkerHints=true, shulkerLock=true, shulkerItemTooltip=true;
+    public boolean shulkerHints=true, shulkerLock=true, shulkerItemTooltip=true,shulkerCompactCount=true;
     public boolean tooltipDefaults140=false;
     // Tools
     public boolean zoomScroll = true, zoomSmooth = true, durabilityAlert = true, deathLog = true, reconnectButton = true, autoReconnect = false;

@@ -258,8 +258,28 @@ if target.startswith('26.'):
 if target.startswith('26.'):
  output=api['net.minecraft.client.renderer.GameRenderer']
  choices=re.findall(r'\bvoid ([\w$]+)\([^;\n]*(?:DeltaTracker|RenderTickCounter)[^;\n]*\);',output)
- assert 'renderLevel' in choices,('Cannot resolve world frame-history hook',choices,output)
+ assert re.search(r'\bvoid renderLevel\(',output),('Cannot resolve world frame-history hook',choices,output)
  file=root/'fabric/src/main/java/net/shoresmp/fabric/mixin/MotionBlurMixin.java'
  code=file.read_text(encoding='utf-8')
  code=re.sub(r'(String SHORE_WORLD_RENDER=)"[^"]*"',r'\1"renderLevel"',code)
  file.write_text(code,encoding='utf-8')
+
+if target.startswith('26.'):
+ world_api=subprocess.run(['javap','-p','-classpath',classpath,'net.minecraft.client.multiplayer.ClientLevel','net.minecraft.world.level.Level','net.minecraft.world.level.storage.LevelData'],capture_output=True,text=True).stdout
+ print('WORLD_CLOCK_API\n'+world_api)
+ expression=None
+ if re.search(r'\blong getDayTime\(\);',world_api):
+  level_data=subprocess.run(['javap','-p','-classpath',classpath,'net.minecraft.world.level.storage.LevelData'],capture_output=True,text=True).stdout
+  expression='client.level.getLevelData().getDayTime()' if 'getDayTime()' in level_data else 'client.level.getDayTime()'
+ if expression is None:
+  clock_classes=set()
+  for entry in cp:
+   if not entry.endswith('.jar') or not Path(entry).is_file():continue
+   with zipfile.ZipFile(entry) as jar:
+    for name in jar.namelist():
+     if name.startswith('net/minecraft/world/') and 'clock' in name.lower() and '$' not in name and name.endswith('.class'):clock_classes.add(name[:-6].replace('/','.'))
+  for name in sorted(clock_classes):
+   detail=subprocess.run(['javap','-p','-classpath',classpath,name],capture_output=True,text=True).stdout
+   print('CLOCK_TYPE '+name+'\n'+detail)
+  raise RuntimeError('Resolve the server world-day clock for '+target)
+ file=root/'fabric/src/main/java/net/shoresmp/fabric/ShoreHud.java';code=file.read_text(encoding='utf-8').replace('client.level.getDayTime()',expression);file.write_text(code,encoding='utf-8')

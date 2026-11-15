@@ -20,7 +20,7 @@ for p in src.rglob('*.java'):
   s=s.replace('client.hud.', 'client.gui.hud.').replace('client.gui.setOverlayMessage(', 'client.gui.hud.setOverlayMessage(')
   s=s.replace('client.options.hideGui','client.gui.hud.isHidden()').replace('mc.options.hideGui','mc.gui.hud.isHidden()')
   s=s.replace('.gameRenderer.getMainCamera()', '.gameRenderer.mainCamera()')
-  s=s.replace('client.getMainRenderTarget()', 'client.gameRenderer.mainRenderTarget()')
+  s=s.replace('client.getMainRenderTarget()', 'client.gameRenderer.mainRenderTarget()').replace('mc.getMainRenderTarget()', 'mc.gameRenderer.mainRenderTarget()')
   s=s.replace('minecraft.levelRenderer.allChanged()', 'minecraft.levelRenderer.invalidateCompiledGeometry(minecraft.level,minecraft.options,minecraft.gameRenderer.mainCamera(),minecraft.getBlockColors())')
   s=s.replace('client.levelRenderer.allChanged()', 'client.levelRenderer.invalidateCompiledGeometry(client.level,client.options,client.gameRenderer.mainCamera(),client.getBlockColors())')
   s=s.replace('mc.levelRenderer.allChanged()', 'mc.levelRenderer.invalidateCompiledGeometry(mc.level,mc.options,mc.gameRenderer.mainCamera(),mc.getBlockColors())')

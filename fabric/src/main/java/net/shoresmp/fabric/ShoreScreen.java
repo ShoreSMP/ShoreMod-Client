@@ -94,7 +94,7 @@ public final class ShoreScreen extends Screen {
     private long lastFrame,resetArmedUntil,caretEpoch;
     private Config.Waypoint deleteWaypoint;private long deleteWaypointUntil;
 
-    public ShoreScreen(Screen parent){super(Text.literal("ShoreMod"));this.parent=parent;defineModules();collapsed.add("hitboxes/Advanced");collapsed.add("motionblur/Advanced");}
+    public ShoreScreen(Screen parent){super(Text.literal("ShoreMod"));this.parent=parent;defineModules();for(var marker:ShoreClient.config.savedWaypoints)collapsed.add("waypoints/Marker: "+marker.name);collapsed.add("hitboxes/Advanced");collapsed.add("motionblur/Advanced");}
 
     private static int accent(){return 0xFF000000|ShoreClient.config.accent;}
     private static boolean light(int c){return ((c>>16&255)*299+(c>>8&255)*587+(c&255)*114)/1000>150;}
@@ -277,6 +277,7 @@ public final class ShoreScreen extends Screen {
             s.slider("Background opacity","Darkness behind the items",0,100,5,"%",()->c.shulkerBgOpacity,v->c.shulkerBgOpacity=v);
             s.toggle("Show name","The shulker box's name above the items",()->c.shulkerTitle,v->c.shulkerTitle=v);
             s.toggle("Show empty slots","Draw a slot background for empty slots",()->c.shulkerEmptySlots,v->c.shulkerEmptySlots=v);
+            s.toggle("Compact item counts","For example, 1.7k instead of 1728",()->c.shulkerCompactCount,v->c.shulkerCompactCount=v);
             s.toggle("Modifier hints","Show Alt+Shift and Control instructions",()->c.shulkerHints,v->c.shulkerHints=v);
             s.toggle("Lock with Left Control","Freeze the tooltip so you can inspect contained items",()->c.shulkerLock,v->c.shulkerLock=v);
             s.toggle("Contained item tooltips","Hover items while the preview is locked",()->c.shulkerItemTooltip,v->c.shulkerItemTooltip=v);

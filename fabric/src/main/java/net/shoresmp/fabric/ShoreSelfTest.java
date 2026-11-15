@@ -301,6 +301,15 @@ final class ShoreSelfTest {
     }
     private static void planShulkerLore(){
         step(1,c->{
+            var tip=new ShoreShulkerTooltip();var box=new ItemStack(Items.SHULKER_BOX);
+            tip.control(true,box,20,20);log(verdict(tip.isLocked())+" control locks a shulker tooltip");
+            tip.control(true,ItemStack.EMPTY,30,30);log(verdict(tip.isLocked())+" held control does not repeatedly toggle the lock");
+            tip.control(false,ItemStack.EMPTY,30,30);tip.control(true,ItemStack.EMPTY,30,30);
+            log(verdict(!tip.isLocked())+" pressing control again unlocks the tooltip");
+            log(verdict(ShoreShulkerTooltip.count(1728).equals("1.7k")&&ShoreShulkerTooltip.count(64).equals("64"))+" compact preview counts fit small slots");
+        });
+
+        step(1,c->{
             try{
                 var method=HandledScreen.class.getDeclaredMethod("shore$previewItems",java.util.List.class,boolean.class);method.setAccessible(true);
                 var a=new ItemStack(Items.DIAMOND,64);var b=new ItemStack(Items.DIAMOND,32);

@@ -123,7 +123,7 @@ public final class ShoreMotionBlur {
    int index=Math.floorMod(next-age,frames.size());
    if(index==pending)continue;
    int alpha=Math.round(255*(total/shown));
-   ctx.drawTexture(RenderPipelines.GUI_TEXTURED,frames.get(index).id,0,0,0,0,ctx.getScaledWindowWidth(),ctx.getScaledWindowHeight(),width,height,width,height,(alpha<<24)|0xFFFFFF);
+   ctx.drawTexture(RenderPipelines.GUI_TEXTURED,frames.get(index).id,0,0,0,height,ctx.getScaledWindowWidth(),ctx.getScaledWindowHeight(),width,-height,width,height,(alpha<<24)|0xFFFFFF);
   }
  }
  public static void finishFrame(){if(pending>=0&&!frames.isEmpty()){next=(pending+1)%frames.size();count=Math.min(count+1,frames.size()-1);pending=-1;}}

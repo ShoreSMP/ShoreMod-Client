@@ -15,6 +15,20 @@ public final class ShoreShulkerTooltip {
  private ItemStack locked=ItemStack.EMPTY,last=ItemStack.EMPTY;
  private boolean controlDown;private int anchorX,anchorY;
  private float left,top,right,bottom;
+ public boolean isLocked(){return !locked.isEmpty();}
+ public void control(boolean down,ItemStack hovered,int mx,int my){
+  if(down&&!controlDown){
+   if(!locked.isEmpty())locked=ItemStack.EMPTY;
+   else if(isBox(hovered)){locked=hovered.copy();anchorX=mx;anchorY=my;}
+   else if(isBox(last))locked=last.copy();
+  }
+  controlDown=down;
+ }
+ public static String count(int amount){
+  if(amount>=1000000)return String.format(Locale.ROOT,"%.1fm",amount/1000000.0).replace(".0m","m");
+  if(amount>=1000)return String.format(Locale.ROOT,"%.1fk",amount/1000.0).replace(".0k","k");
+  return Integer.toString(amount);
+ }
  public void clear(){locked=ItemStack.EMPTY;last=ItemStack.EMPTY;controlDown=false;}
  public boolean click(double x,double y){
   if(locked.isEmpty())return false;
@@ -33,19 +47,14 @@ public final class ShoreShulkerTooltip {
   if(c==null||!c.shulkerPreview){clear();return false;}
   long window=mc.getWindow().getHandle();
   boolean ctrl=GLFW.glfwGetKey(window,GLFW.GLFW_KEY_LEFT_CONTROL)==GLFW.GLFW_PRESS;
-  if(c.shulkerLock&&ctrl&&!controlDown){
-   if(!locked.isEmpty())locked=ItemStack.EMPTY;
-   else if(isBox(hovered)){locked=hovered.copy();anchorX=mx;anchorY=my;}
-   else if(isBox(last)){locked=last.copy();}
-  }
-  controlDown=ctrl;
+  control(c.shulkerLock&&ctrl,hovered,mx,my);
   if(!c.shulkerLock)locked=ItemStack.EMPTY;
   ItemStack stack=locked.isEmpty()?hovered:locked;
   if(!isBox(stack)){last=ItemStack.EMPTY;return false;}
   boolean shift=GLFW.glfwGetKey(window,GLFW.GLFW_KEY_LEFT_SHIFT)==GLFW.GLFW_PRESS;
   boolean alt=GLFW.glfwGetKey(window,GLFW.GLFW_KEY_LEFT_ALT)==GLFW.GLFW_PRESS;
   if(c.shulkerMode==0&&!shift&&locked.isEmpty())return false;
-  if(locked.isEmpty()){anchorX=mx;anchorY=my;last=stack.copy();}
+  if(locked.isEmpty()){anchorX=mx;anchorY=my;if(last.isEmpty()||last.getCount()!=stack.getCount()||!ItemStack.areItemsAndComponentsEqual(last,stack))last=stack.copy();}
   var items=net.minecraft.util.collection.DefaultedList.ofSize(27,ItemStack.EMPTY);
   stack.getOrDefault(DataComponentTypes.CONTAINER,ContainerComponent.DEFAULT).copyTo(items);
   boolean full=alt&&shift;var preview=previewItems(items,full);
@@ -86,7 +95,7 @@ public final class ShoreShulkerTooltip {
   for(int i=0;i<cols*rows;i++){
    int sx=11+i%cols*18,sy=gridY+5+i/cols*18;var item=i<preview.size()?preview.get(i):ItemStack.EMPTY;
    if(c.shulkerEmptySlots||!item.isEmpty()){ctx.fill(sx-1,sy-1,sx+17,sy+17,0xFF252025);ctx.fill(sx,sy,sx+16,sy+16,alpha|gridColor);}
-   if(!item.isEmpty()){ctx.drawItem(item,sx,sy);ctx.drawStackOverlay(tr,item,sx,sy);}
+   if(!item.isEmpty()){ctx.drawItem(item,sx,sy);ctx.drawStackOverlay(tr,item,sx,sy,c.shulkerCompactCount&&item.getCount()>999?count(item.getCount()):null);}
    if(!locked.isEmpty()&&(mx-x)/sc>=sx&&(mx-x)/sc<sx+16&&(my-y)/sc>=sy&&(my-y)/sc<sy+16){under=item;ctx.fill(sx,sy,sx+16,sy+16,0x33FFFFFF);}
   }
   for(int i=0;i<lore.size();i++)ctx.drawTextWithShadow(tr,lore.get(i),6,loreY+i*lineH,0xFFFFFFFF);
