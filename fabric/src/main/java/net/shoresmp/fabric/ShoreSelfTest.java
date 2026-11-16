@@ -202,7 +202,27 @@ final class ShoreSelfTest {
         step(15,c->measureHud(c,"GUI1 scale100"));await(c->measuredHud!=null,0);
         step(0,c->{hudGuiOne=measuredHud.clone();scale(c,3);});
         step(15,c->measureHud(c,"GUI3 scale100"));await(c->measuredHud!=null,0);
-        step(0,c->{hudGuiThree=measuredHud.clone();log(verdict(hudGuiOne[2]>0&&Math.abs(hudGuiOne[2]-hudGuiThree[2])<=1&&Math.abs(hudGuiOne[3]-hudGuiThree[3])<=1)+" HUD physical boxes ignore Minecraft GUI zoom");ShoreClient.config.hudScale=50;});
+        step(0,c->{
+            hudGuiThree=measuredHud.clone();log(verdict(hudGuiOne[2]>0&&Math.abs(hudGuiOne[2]-hudGuiThree[2])<=1&&Math.abs(hudGuiOne[3]-hudGuiThree[3])<=1)+" HUD physical boxes ignore Minecraft GUI zoom");
+            c.debugHudEntryList.setF3Enabled(false);
+            c.debugHudEntryList.setEntryVisibility(net.minecraft.client.gui.hud.debug.DebugHudEntries.ENTITY_HITBOXES,net.minecraft.client.gui.hud.debug.DebugHudEntryVisibility.ALWAYS_ON);
+            ShoreClient.config.betterF3=true;
+            log(verdict(c.getDebugHud().shouldShowDebugHud()&&!ShoreDebug.isPanelOpen())+" vanilla hitboxes are not the full F3 panel");
+        });
+        step(15,c->measureHud(c,"vanilla hitboxes on"));await(c->measuredHud!=null,0);
+        step(0,c->{
+            log(verdict(measuredHud[2]>0&&Math.abs(measuredHud[2]-hudGuiThree[2])<=1&&Math.abs(measuredHud[3]-hudGuiThree[3])<=1)+" HUD remains visible with vanilla hitboxes and Better F3 enabled");
+            c.debugHudEntryList.setF3Enabled(true);log(verdict(ShoreDebug.isPanelOpen())+" actual F3 panel is detected independently");
+            c.debugHudEntryList.setF3Enabled(false);
+            c.debugHudEntryList.setEntryVisibility(net.minecraft.client.gui.hud.debug.DebugHudEntries.ENTITY_HITBOXES,net.minecraft.client.gui.hud.debug.DebugHudEntryVisibility.NEVER);
+            ShoreClient.config.betterF3=false;ShoreClient.config.hudScale=50;
+            var cfg=ShoreClient.config;int oldRange=cfg.hitboxRange;boolean oldLoaded=cfg.hitboxLoadedRange;
+            cfg.hitboxRange=24;cfg.hitboxLoadedRange=true;
+            log(verdict(ShoreVisuals.hitboxInRange(cfg,200*200))+" loaded hitboxes have no artificial 24/48-block cutoff");
+            cfg.hitboxLoadedRange=false;cfg.hitboxRange=64;
+            log(verdict(ShoreVisuals.hitboxInRange(cfg,50*50)&&!ShoreVisuals.hitboxInRange(cfg,80*80))+" custom hitbox range still applies when selected");
+            cfg.hitboxLoadedRange=oldLoaded;cfg.hitboxRange=oldRange;
+        });
         step(15,c->measureHud(c,"GUI3 scale50"));await(c->measuredHud!=null,0);
         step(0,c->{log(verdict(measuredHud[2]>0&&Math.abs(measuredHud[2]*2-hudGuiThree[2])<=2&&Math.abs(measuredHud[3]*2-hudGuiThree[3])<=2)+" HUD boxes halve at fifty percent");ShoreClient.config.hudScale=100;ShoreClient.config.hudSizes.put("clock",50);});
         step(15,c->measureHud(c,"GUI3 element50"));await(c->measuredHud!=null,0);

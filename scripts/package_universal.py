@@ -3,7 +3,7 @@ import io,json,hashlib,sys,zipfile
 from pathlib import Path
 from verify_compat import verify_clean
 TARGETS={'1.21.5','1.21.8','1.21.10','1.21.11','26.1','26.2','26.3'}
-VERSION='1.4.0'
+VERSION='1.4.1'
 def package(folder,output):
  variants={};icon=None;shared={}
  for path in folder.glob('*.jar'):

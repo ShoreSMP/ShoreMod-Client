@@ -53,6 +53,7 @@ public final class ShoreVisuals {
         }catch(NumberFormatException e){ShoreClient.tellError("Enter valid X Y Z coordinates.");return false;}
         w.name=w.name.substring(0,Math.min(32,w.name.length()));c.savedWaypoints.add(w);c.waypoints=true;c.save();ShoreClient.tell("Saved waypoint: "+w.name);return true;
     }
+    public static boolean hitboxInRange(Config c,double distanceSquared){return c.hitboxLoadedRange||distanceSquared<=(double)c.hitboxRange*c.hitboxRange;}
     public static void tick(MinecraftClient mc){
         var c=ShoreClient.config;
         if(world!=mc.world||session!=ShoreClient.sessionEpoch){world=mc.world;session=ShoreClient.sessionEpoch;wasAlive=mc.player==null||mc.player.isAlive();entities=List.of();popAt=0;debug=List.of();serverScope=mc.world==null?"":scope(mc);}
@@ -64,10 +65,28 @@ public final class ShoreVisuals {
         wasAlive=mc.player.isAlive();
         if(!c.coloredHitboxes&&!c.blockOverlay&&!c.betterF3)return;
         if(++ticks%4!=0)return;
-        if(c.coloredHitboxes){entities=mc.world.getOtherEntities(mc.player,mc.player.getBoundingBox().expand(c.hitboxRange),e->e.isAlive()&&!e.isInvisible()&&(!c.hitboxPlayersOnly||e instanceof PlayerEntity)&&e.squaredDistanceTo(mc.player)<=c.hitboxRange*c.hitboxRange).stream().sorted(Comparator.comparingDouble(e->e.squaredDistanceTo(mc.player))).limit(64).filter(mc.player::canSee).limit(c.hitboxLimit).toList();}else entities=List.of();
+        if(c.coloredHitboxes){
+            var distance=Comparator.<Entity>comparingDouble(e->e.squaredDistanceTo(mc.player));
+            var nearest=new PriorityQueue<Entity>(distance.reversed());
+            int budget=Math.min(512,c.hitboxLimit*4);
+            Iterable<Entity> candidates=c.hitboxLoadedRange?mc.world.getEntities():mc.world.getOtherEntities(mc.player,mc.player.getBoundingBox().expand(c.hitboxRange),e->true);
+            for(Entity entity:candidates){
+                if(entity==mc.player||!entity.isAlive()||entity.isInvisible()||(c.hitboxPlayersOnly&&!(entity instanceof PlayerEntity)))continue;
+                if(!hitboxInRange(c,entity.squaredDistanceTo(mc.player)))continue;
+                nearest.add(entity);if(nearest.size()>budget)nearest.poll();
+            }
+            var ordered=new ArrayList<>(nearest);ordered.sort(distance);
+            var visible=new ArrayList<Entity>();
+            for(Entity entity:ordered){
+                var ray=mc.world.raycast(new net.minecraft.world.RaycastContext(mc.player.getEyePos(),entity.getEyePos(),net.minecraft.world.RaycastContext.ShapeType.COLLIDER,net.minecraft.world.RaycastContext.FluidHandling.NONE,mc.player));
+                if(ray.getType()==net.minecraft.util.hit.HitResult.Type.MISS)visible.add(entity);
+                if(visible.size()>=c.hitboxLimit)break;
+            }
+            entities=List.copyOf(visible);
+        }else entities=List.of();
         blockPos=mc.crosshairTarget instanceof BlockHitResult hit&&hit.getType()==net.minecraft.util.hit.HitResult.Type.BLOCK?hit.getBlockPos():null;
         blockName=blockPos==null?"":mc.world.getBlockState(blockPos).getBlock().getName().getString();
-        if(c.betterF3&&mc.getDebugHud().shouldShowDebugHud()){
+        if(c.betterF3&&ShoreDebug.isPanelOpen()){
             var out=new ArrayList<String>();out.add("ShoreMod | "+mc.getCurrentFps()+" FPS");
             if(c.debugCoordinates&&!mc.player.hasReducedDebugInfo()){out.add("XYZ "+mc.player.getBlockX()+" / "+mc.player.getBlockY()+" / "+mc.player.getBlockZ());out.add(mc.player.getHorizontalFacing().asString()+" | "+mc.world.getRegistryKey().getValue());out.add("Biome: "+mc.world.getBiome(mc.player.getBlockPos()).getKey().map(k->k.getValue().getPath()).orElse("Unknown"));}
             if(c.debugTarget&&blockPos!=null){out.add("Looking at: "+blockName);if(!mc.player.hasReducedDebugInfo())out.add(blockPos.getX()+" / "+blockPos.getY()+" / "+blockPos.getZ());}
@@ -112,7 +131,7 @@ public final class ShoreVisuals {
     }
     public static void render(DrawContext ctx){
         var mc=MinecraftClient.getInstance();var c=ShoreClient.config;if(c==null||mc.player==null||mc.world==null||mc.options.hudHidden)return;
-        boolean debugOpen=mc.getDebugHud().shouldShowDebugHud();
+        boolean debugOpen=ShoreDebug.isPanelOpen();
         if(!debugOpen&&(c.blockOverlay||c.coloredHitboxes||c.waypoints)){
             var camera=mc.gameRenderer.getCamera();var position=camera.getCameraPos();
             cameraX=position.x;cameraY=position.y;cameraZ=position.z;inverseView.set(camera.getRotation()).conjugate();
@@ -124,7 +143,7 @@ public final class ShoreVisuals {
             if(c.coloredHitboxes)for(Entity e:entities)if(!e.isRemoved()&&!e.isInvisible()){
                 float delta=mc.getRenderTickCounter().getTickProgress(false);
                 var pos=e.getLerpedPos(delta);var offset=pos.subtract(e.getX(),e.getY(),e.getZ());var bounds=e.getBoundingBox().offset(offset);
-                float fade=c.hitboxDistanceFade?Math.clamp(1-(float)Math.sqrt(e.squaredDistanceTo(mc.player))/c.hitboxRange,0.15f,1):1;
+                float fade=c.hitboxDistanceFade?Math.clamp(1-(float)Math.sqrt(e.squaredDistanceTo(mc.player))/(c.hitboxLoadedRange?Math.max(16,mc.options.getViewDistance().getValue()*16):c.hitboxRange),0.15f,1):1;
                 int alpha=Math.round(c.hitboxOpacity*2.55f*fade);
                 int rgb=c.hitboxTargetColor&&mc.targetedEntity==e?c.hitboxTargetRgb:c.hitboxColor;
                 box(mc,ctx,bounds,(alpha<<24)|rgb,c.hitboxWidth,c.hitboxStyle);

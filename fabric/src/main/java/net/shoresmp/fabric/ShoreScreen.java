@@ -173,7 +173,8 @@ public final class ShoreScreen extends Screen {
         mod("hitboxes","Hitboxes","Colored wireframes for nearby visible entities.","PvP","box",true,()->c.coloredHitboxes,v->c.coloredHitboxes=v,s->{
             s.color("Color","RGB hex",()->c.hitboxColor,v->c.hitboxColor=v);
             s.toggle("Players only","Skip mobs and other entities",()->c.hitboxPlayersOnly,v->c.hitboxPlayersOnly=v);
-            s.slider("Range","Limits nearby entity checks",4,48,1,"m",()->c.hitboxRange,v->c.hitboxRange=v);
+            s.segment("Range mode","Loaded follows entities supplied by the server, without an extra distance cutoff",new String[]{"Loaded entities","Custom range"},()->c.hitboxLoadedRange?0:1,v->c.hitboxLoadedRange=v==0);
+            s.slider("Custom range","Used only in Custom range mode",4,256,1,"m",()->c.hitboxRange,v->c.hitboxRange=v);
             s.section("Style");
             s.segment("Shape","Visual only; actual hit detection stays unchanged",new String[]{"Full box","Corners","Ground"},()->c.hitboxStyle,v->c.hitboxStyle=v);
             s.slider("Line thickness","",1,4,1," px",()->c.hitboxWidth,v->c.hitboxWidth=v);
@@ -186,7 +187,7 @@ public final class ShoreScreen extends Screen {
             s.toggle("Look direction","Show the direction the entity faces",()->c.hitboxLook,v->c.hitboxLook=v);
             s.color("Look-line color","",()->c.hitboxLookColor,v->c.hitboxLookColor=v);
             s.toggle("Distance fade","Fade distant hitboxes",()->c.hitboxDistanceFade,v->c.hitboxDistanceFade=v);
-            s.slider("Entity limit","Visible entities only; keeps work bounded",1,64,1,"",()->c.hitboxLimit,v->c.hitboxLimit=v);
+            s.slider("Entity limit","Visible entities only; keeps work bounded",1,256,1,"",()->c.hitboxLimit,v->c.hitboxLimit=v);
         });
         mod("totemtweaks","Totem Tweaks","Use a lightweight, customizable totem sprite in your hand and on pop.","PvP","totem",true,()->c.totemTweaks,v->c.totemTweaks=v,s->{
             s.slider("Held size","First-person totem sprite",10,200,1,"%",()->c.heldTotemSize,v->c.heldTotemSize=v);
@@ -883,7 +884,7 @@ public final class ShoreScreen extends Screen {
         Map.entry("motionblur",new String[]{"blurStrength","blurSamples","blurMovingOnly","blurFps","blurAutoProtect","blurMinFps","blurMemoryMb"}),
         Map.entry("crystals",new String[]{"crystalColor","crystalRainbow","crystalStyle","crystalOpacity","crystalSize","crystalSpeed","crystalBob","crystalBase","crystalBeam"}),
         Map.entry("days",new String[]{"dayLabel","dayOneBased","dayOffset","dayShowTime"}),
-        Map.entry("hitboxes",new String[]{"hitboxColor","hitboxPlayersOnly","hitboxRange"}),
+        Map.entry("hitboxes",new String[]{"hitboxColor","hitboxPlayersOnly","hitboxRange","hitboxLoadedRange","hitboxWidth","hitboxOpacity","hitboxLimit","hitboxStyle","hitboxEyes","hitboxLook","hitboxTargetColor","hitboxDistanceFade","hitboxEyeColor","hitboxLookColor","hitboxTargetRgb"}),
         Map.entry("totemtweaks",new String[]{"heldTotemSize","heldTotemOpacity","popTotemSize","popTotemOpacity"}),
         Map.entry("waypoints",new String[]{"waypointColor","waypointRange","waypointScale"}),
         Map.entry("cps",new String[]{"cpsRight"}),Map.entry("keystrokes",new String[]{"keystrokesMouse","keystrokesSpace","keystrokesAccent"}),

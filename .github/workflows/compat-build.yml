@@ -1,7 +1,7 @@
 name: Build and release ShoreMod
 on:
   push:
-    branches: ['main', 'upgrade/visuals-140']
+    branches: ['main', 'fix/hitbox-hud-141']
     paths: ['fabric/**', 'common/**', 'plugin/**', 'scripts/**', 'build.gradle', 'gradle.properties', 'settings.gradle', 'gradle/**', '.github/workflows/compat-build.yml']
   workflow_dispatch:
 concurrency:
@@ -292,7 +292,7 @@ jobs:
               with zipfile.ZipFile(path) as jar:
                   if 'fabric.mod.json' in jar.namelist():
                       meta=json.loads(jar.read('fabric.mod.json'))
-                      assert meta['version']=='1.4.0',meta
+                      assert meta['version']=='1.4.1',meta
                       versions.add(meta['depends']['minecraft'])
                   else:
                       assert 'plugin.yml' in jar.namelist()
@@ -302,17 +302,17 @@ jobs:
           print('PASS: seven client versions; companion plugin included only in private checkout')
           PY
       - name: Package one universal client
-        run: python3 scripts/package_universal.py jars universal/ShoreMod-1.4.0.jar
+        run: python3 scripts/package_universal.py jars universal/ShoreMod-1.4.1.jar
       - name: Verify real Fabric version selection
-        run: python3 scripts/check_universal.py universal/ShoreMod-1.4.0.jar
+        run: python3 scripts/check_universal.py universal/ShoreMod-1.4.1.jar
       - uses: actions/upload-artifact@v4
         with:
-          name: ShoreMod-1.4.0
+          name: ShoreMod-1.4.1
           if-no-files-found: error
           path: universal/*
       - uses: actions/upload-artifact@v4
         with:
-          name: ShoreMod-1.4.0-All-Jars
+          name: ShoreMod-1.4.1-All-Jars
           path: jars/*.jar
           if-no-files-found: error
 
@@ -322,19 +322,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          if gh release view v1.4.0 >/dev/null 2>&1; then
-            echo "Release v1.4.0 already exists; preserving its published assets."
+          if gh release view v1.4.1 >/dev/null 2>&1; then
+            echo "Release v1.4.1 already exists; preserving its published assets."
             exit 0
           fi
           cat > release-notes.txt <<'NOTES'
-          Redesigned shulker tooltips: one panel with the item name, contents, preserved formatted lore, and modifier hints. Left Alt+Left Shift expands all slots; Left Control locks the tooltip for inspecting contained items.
+          Fixes the ShoreMod HUD, crosshair, waypoints and visual overlays disappearing when vanilla hitboxes or another always-on debug entry are enabled. Better F3 now replaces only the actual F3 panel, preserving individual debug features.
 
-          Adds GPU frame-history motion blur with strength, samples, capture-rate, movement-only, FPS-protection and memory-budget controls; custom crystal color, opacity, size, animation, bobbing, base/beam controls; and a configurable world-day HUD counter.
+          ShoreMod hitboxes now default to following loaded entities rather than a 24-block range. Custom range remains available up to 256 blocks, and the entity limit is adjustable up to 256. Server tracking/chunk loading still determines which entities exist on the client. Nearest-candidate selection and line-of-sight work remain bounded.
 
-          Hitboxes have thickness, opacity, corner/ground styles, target colors, eye/look lines and distance fading. Waypoints have a quick M menu, /waypoint commands, save-here, tracking, rename/colors, coordinate copying, death markers and offscreen indicators. Chat heads support multiline server headers and appear beside the sender name.
+          One universal JAR supports 1.21.5, 1.21.8, 1.21.10, 1.21.11, 26.1, 26.2 and 26.3. Replace your old ShoreMod JAR. Matching Fabric API is required.
 
-          Settings are darker and roomier, with single-column rows by default, expandable advanced sections, customizable menu/HUD/inventory colors, spacing and padding. Removed the Updates panel.
-
-          One universal JAR supports 1.21.5, 1.21.8, 1.21.10, 1.21.11, 26.1, 26.2 and 26.3. Use the matching Fabric API. Optional visual effects cost GPU time; motion blur is off by default and has FPS protection.
+          Includes a real framebuffer regression with vanilla hitboxes enabled and Better F3 on, plus separate full-F3 detection and loaded/custom hitbox range checks.
           NOTES
-          gh release create v1.4.0 universal/ShoreMod-1.4.0.jar universal/ShoreMod-1.4.0.jar.sha256 --target "$GITHUB_SHA" --title "ShoreMod 1.4.0" --notes-file release-notes.txt
+          gh release create v1.4.1 universal/ShoreMod-1.4.1.jar universal/ShoreMod-1.4.1.jar.sha256 --target "$GITHUB_SHA" --title "ShoreMod 1.4.1" --notes-file release-notes.txt

@@ -24,7 +24,7 @@ public final class ShoreHud {
         HudElementRegistry.replaceElement(net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements.CROSSHAIR,vanilla->(ctx,tick)->{
             Config c=ShoreClient.config;var client=MinecraftClient.getInstance();
             if(c==null||!c.crosshair||!client.options.getPerspective().isFirstPerson()||client.options.hudHidden
-                ||client.getDebugHud().shouldShowDebugHud()||client.player==null||client.player.isSpectator())vanilla.render(ctx,tick);
+                ||ShoreDebug.isPanelOpen()||client.player==null||client.player.isSpectator())vanilla.render(ctx,tick);
             else crosshair(ctx);
         });
     }
@@ -103,7 +103,7 @@ public final class ShoreHud {
     private static void render(DrawContext ctx){
         ShoreVisuals.render(ctx);
         var client=MinecraftClient.getInstance();Config c=ShoreClient.config;
-        if(c==null||client.player==null||client.options.hudHidden||client.getDebugHud().shouldShowDebugHud())return;
+        if(c==null||client.player==null||client.options.hudHidden||ShoreDebug.isPanelOpen())return;
         var tr=client.textRenderer;
         float global=net.shoresmp.core.HudScale.guiUnits(client.getWindow().getFramebufferHeight(),client.getWindow().getScaleFactor(),c.hudScale,100);
         List<Block> blocks=new ArrayList<>();

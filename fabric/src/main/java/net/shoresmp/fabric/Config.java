@@ -57,6 +57,7 @@ public final class Config {
     public String dayLabel="Day";
     public int hitboxWidth=1, hitboxOpacity=100, hitboxLimit=32, hitboxStyle=0, hitboxEyeColor=0xFF5555, hitboxLookColor=0x55CCFF;
     public boolean hitboxEyes=false, hitboxLook=false, hitboxTargetColor=true, hitboxDistanceFade=false;
+    public boolean hitboxLoadedRange=true;
     public int hitboxTargetRgb=0xFF5555;
     public int guiTintColor=0xFFFFFF, menuBackgroundColor=0x0D0F12, hudBackgroundColor=0x101217, hudBorderColor=0x50A7FF;
     public boolean hudBorder=false,menuTwoColumns=false,menuDefaults140=false;
@@ -133,7 +134,7 @@ public final class Config {
         crystalColor&=0xFFFFFF;crystalOpacity=Math.clamp(crystalOpacity,5,100);crystalSize=Math.clamp(crystalSize,25,200);
         crystalSpeed=Math.clamp(crystalSpeed,0,300);crystalBob=Math.clamp(crystalBob,0,200);crystalStyle=Math.clamp(crystalStyle,0,2);
         dayOffset=Math.clamp(dayOffset,-1000000,1000000);if(dayLabel==null)dayLabel="Day";dayLabel=dayLabel.substring(0,Math.min(24,dayLabel.length()));
-        hitboxWidth=Math.clamp(hitboxWidth,1,4);hitboxOpacity=Math.clamp(hitboxOpacity,5,100);hitboxLimit=Math.clamp(hitboxLimit,1,64);hitboxStyle=Math.clamp(hitboxStyle,0,2);
+        hitboxWidth=Math.clamp(hitboxWidth,1,4);hitboxOpacity=Math.clamp(hitboxOpacity,5,100);hitboxLimit=Math.clamp(hitboxLimit,1,256);hitboxStyle=Math.clamp(hitboxStyle,0,2);
         hitboxEyeColor&=0xFFFFFF;hitboxLookColor&=0xFFFFFF;hitboxTargetRgb&=0xFFFFFF;
         guiTintColor&=0xFFFFFF;menuBackgroundColor&=0xFFFFFF;hudBackgroundColor&=0xFFFFFF;hudBorderColor&=0xFFFFFF;
         hudPadding=Math.clamp(hudPadding,2,12);hudGap=Math.clamp(hudGap,0,12);hudMargin=Math.clamp(hudMargin,0,40);menuShade=Math.clamp(menuShade,0,90);
@@ -145,7 +146,7 @@ public final class Config {
         if(!compactGuiDefaultApplied){if(menuScale==100)menuScale=85;compactGuiDefaultApplied=true;}
         if(!performanceDefaultsApplied){recording=false;lowOverhead=true;performanceDefaultsApplied=true;}
         chatHeadSize=Math.clamp(chatHeadSize,4,8);
-        blockOpacity=Math.clamp(blockOpacity,0,100);outlineWidth=Math.clamp(outlineWidth,1,4);hitboxRange=Math.clamp(hitboxRange,4,48);
+        blockOpacity=Math.clamp(blockOpacity,0,100);outlineWidth=Math.clamp(outlineWidth,1,4);hitboxRange=Math.clamp(hitboxRange,4,256);
         inventoryOpacity=Math.clamp(inventoryOpacity,10,100);
         heldTotemSize=Math.clamp(heldTotemSize,10,200);popTotemSize=Math.clamp(popTotemSize,10,200);
         heldTotemOpacity=Math.clamp(heldTotemOpacity,0,100);popTotemOpacity=Math.clamp(popTotemOpacity,0,100);

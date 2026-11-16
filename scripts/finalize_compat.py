@@ -289,3 +289,22 @@ if target.startswith('26.'):
  code=file.read_text(encoding='utf-8').replace('client.level.getDayTime()',expression)
  file.write_text(code,encoding='utf-8')
  print('Resolved day counter clock:',expression)
+
+# Individual always-on debug entries must not suppress the PvP HUD.
+if target.startswith('26.'):
+ paths=[]
+ for type_name,base in [('net.minecraft.client.Minecraft','mc'),('net.minecraft.client.gui.Gui','mc.gui')]:
+  output=api.get(type_name,'')
+  for line in output.splitlines():
+   field=re.match(r'\s*public (?:final )?([\w.$]+) ([\w$]+);',line)
+   getter=re.match(r'\s*public (?:final )?([\w.$]+) ([\w$]+)\(\);',line)
+   item=field or getter
+   if not item or not any(word in item[1] for word in ('Debug','Profile','Entries')):continue
+   detail=subprocess.run(['javap','-p','-classpath',classpath,item[1]],capture_output=True,text=True).stdout
+   if 'boolean isF3Enabled();' in detail:paths.append(base+'.'+item[2]+('()' if getter else '')+'.isF3Enabled()')
+ assert paths,('Cannot locate the explicit F3 flag',api['net.minecraft.client.Minecraft'],api.get('net.minecraft.client.gui.Gui',''))
+ file=root/'fabric/src/main/java/net/shoresmp/fabric/ShoreDebug.java'
+ code=file.read_text(encoding='utf-8')
+ code=re.sub(r'return [^;]+;',lambda m:'return '+paths[0]+';',code)
+ file.write_text(code,encoding='utf-8')
+ print('Resolved explicit F3 flag:',paths[0])

@@ -8,5 +8,5 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(DebugHud.class)
 public abstract class CleanDebugMixin {
  @Inject(method="render",at=@At("HEAD"),cancellable=true)
- private void shore$debug(DrawContext ctx,CallbackInfo ci){if(ShoreClient.config!=null&&ShoreClient.config.betterF3){ShoreVisuals.debug(ctx);ci.cancel();}}
+ private void shore$debug(DrawContext ctx,CallbackInfo ci){if(ShoreClient.config!=null&&ShoreClient.config.betterF3&&ShoreDebug.isPanelOpen()){ShoreVisuals.debug(ctx);ci.cancel();}}
 }
