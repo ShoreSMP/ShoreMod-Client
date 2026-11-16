@@ -2,7 +2,7 @@
 
 Fabric client mod for Minecraft **1.21.5, 1.21.8, 1.21.10, 1.21.11, 26.1, 26.2, and 26.3**.
 
-[Download ShoreMod 1.4.0](https://github.com/ShoreSMP/ShoreMod-Client/releases/download/v1.4.0/ShoreMod-1.4.0.jar) | [All releases](https://github.com/ShoreSMP/ShoreMod-Client/releases)
+[Download ShoreMod 1.4.1](https://github.com/ShoreSMP/ShoreMod-Client/releases/download/v1.4.1/ShoreMod-1.4.1.jar) | [All releases](https://github.com/ShoreSMP/ShoreMod-Client/releases)
 
 ## Install
 
@@ -26,7 +26,7 @@ Open settings with **Right Shift** or **/shore**. New visual modules are optiona
 
 - Low-overhead preset: disables recording and 3D HUD item icons; repeated nameplate text is cached.
 - Configurable block outline, compact F3 panel, inventory opacity, and Minecraft GUI size.
-- Colored hitboxes for nearby visible entities, capped at 32.
+- Colored hitboxes for loaded visible entities, with optional custom range and a configurable entity cap. Vanilla hitboxes can stay enabled without hiding the ShoreMod HUD.
 - Lightweight held-totem and pop sprites with independent size and opacity.
 - Local waypoints with names, colors, coordinates, range, and separate server/dimension scopes.
 - Chat heads with size and outer-layer controls, plus existing chat history, stacking, timestamps, and mentions. Heads appear beside recognized sender names, including multiline server headers, and use Minecraft-managed skins.
