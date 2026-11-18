@@ -28,8 +28,8 @@ final class ShoreGameScreen extends Screen {
     private ShoreGames.Match match;
     private String errorText = "";
     private String requestedCode = "";
-    private long requestedAt, spinStartedAt;
-    private boolean opened, home, unavailable, customReward;
+    private long requestedAt, spinStartedAt, nextRefreshAt;
+    private boolean opened, home, unavailable, customReward, changingGiveaway;
     private float x, y, w, mx, my;
     private int accent, surface;
 
@@ -55,6 +55,7 @@ final class ShoreGameScreen extends Screen {
     private void refresh(boolean fresh) {
         var request = ShoreGames.request(kind == ShoreGames.Kind.GIVEAWAY ? "give.open" : "ttt.open");
         request.addProperty("fresh", fresh);
+        changingGiveaway = fresh;
         if (!fresh && giveaway != null) request.addProperty("id", giveaway.id());
         submit(request);
     }
@@ -86,17 +87,19 @@ final class ShoreGameScreen extends Screen {
             home = true; giveaway = null; match = null; spinStartedAt = 0;
         } else if (op.equals("give.state")) {
             var next = ShoreGames.giveaway(packet);
-            if (giveaway != null && !giveaway.id().equals(next.id())) return;
+            if (!changingGiveaway && giveaway != null && !giveaway.id().equals(next.id())) return;
             if (!requestedCode.isEmpty() && !requestedCode.equalsIgnoreCase(next.code())) return;
             if (next.finished() && !next.winner().isEmpty() && (giveaway == null || !giveaway.finished()
                 || !giveaway.code().equals(next.code()))) spinStartedAt = System.nanoTime();
             giveaway = next; home = false;
+            nextRefreshAt = System.nanoTime()+4_000_000_000L;
         } else if (op.equals("ttt.state")) {
             match = ShoreGames.match(packet); home = false;
         } else return;
         hits.clear();
         requestedAt = 0;
         requestedCode = "";
+        changingGiveaway = false;
         errorText = "";
         focused = null;
     }
@@ -105,12 +108,20 @@ final class ShoreGameScreen extends Screen {
         errorText = message;
         requestedAt = 0;
         requestedCode = "";
+        changingGiveaway = false;
         hits.clear();
     }
 
     @Override public void tick(){
-        if (requestedAt != 0 && System.nanoTime() - requestedAt >= 7_000_000_000L)
+        long now = System.nanoTime();
+        if (requestedAt != 0 && now-requestedAt >= 7_000_000_000L)
             error("No reply yet. Refresh to check the server.");
+        if (giveaway != null && !giveaway.finished() && requestedAt == 0 && now >= nextRefreshAt) {
+            nextRefreshAt = now+4_000_000_000L;
+            var request = ShoreGames.request("give.open");
+            request.addProperty("id", giveaway.id());
+            ShoreGames.send(request);
+        }
     }
 
     @Override public void render(DrawContext ctx,int guiX,int guiY,float delta){
@@ -126,6 +137,7 @@ final class ShoreGameScreen extends Screen {
         surface = ShoreUi.mix(0xFF000000 | config.menuBackgroundColor, accent, 0.14f);
         w = Math.min(438, ui.W-24);
         x = (ui.W-w)/2; y = (ui.H-334)/2;
+        ShoreMenuBackground.draw(ui,config);
         ui.rect(0, 0, ui.W, ui.H, ShoreUi.alpha(0xFF000000, config.menuShade/100f));
         ui.outline(x, y, w, 334, 13, ShoreUi.mix(surface, accent, 0.30f), panel);
         ui.round(x+18, y+16, 34, 34, 8, surface);

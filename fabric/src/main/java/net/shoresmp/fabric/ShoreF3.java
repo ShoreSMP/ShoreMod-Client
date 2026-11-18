@@ -52,16 +52,23 @@ public final class ShoreF3 {
     private static long opened, nextSample, lastBytes, lastSample;
     private static Object lastWorld;
     private static List<Line> rows = List.of();
+    private static List<DrawLine> layout = List.of();
+    private static List<Line> layoutRows;
+    private static int layoutWidth;
     private static CompletableFuture<String> spawnRequest;
     private static String spawnSummary = "Waiting for server";
     private static long nextSpawnSample;
     private static String cpu;
+    private static final String GAME_VERSION = net.fabricmc.loader.api.FabricLoader.getInstance()
+        .getModContainer("minecraft").orElseThrow().getMetadata().getVersion().getFriendlyString();
     private record Line(String text, int color) {}
+    private record DrawLine(String text, int width, int color) {}
 
     public static void registerKeys(BiFunction<String,Integer,KeyBinding> register) {
-        panelKey = register.apply("custom_f3", -1);
-        pieKey = register.apply("custom_pie", -1);
-        graphKey = register.apply("custom_graph", -1);
+        int unbound = net.minecraft.client.util.InputUtil.UNKNOWN_KEY.getCode();
+        panelKey = register.apply("custom_f3", unbound);
+        pieKey = register.apply("custom_pie", unbound);
+        graphKey = register.apply("custom_graph", unbound);
     }
 
     public static void tick(MinecraftClient mc) {
@@ -81,7 +88,7 @@ public final class ShoreF3 {
             opened = 0;
         }
         if (!active()) {
-            if (opened != 0) { opened = 0; rows = List.of(); lastSample = 0; }
+            if (opened != 0) { opened = 0; rows = List.of(); layout = List.of(); layoutRows = null; lastSample = 0; }
             return;
         }
         refresh(mc, System.nanoTime());
@@ -117,7 +124,7 @@ public final class ShoreF3 {
         var world = mc.world;
         var pos = p.getBlockPos();
         return switch (f) {
-            case VERSION -> mc.getGameVersion();
+            case VERSION -> GAME_VERSION;
             case FPS -> Integer.toString(mc.getCurrentFps());
             case SERVER -> mc.getCurrentServerEntry() == null ? "Singleplayer" : mc.getCurrentServerEntry().address;
             case ENTITIES -> Integer.toString(world.getRegularEntityCount());
@@ -131,7 +138,7 @@ public final class ShoreF3 {
             case LIGHT -> world.getLightLevel(LightType.BLOCK, pos) + " block / " + world.getLightLevel(LightType.SKY, pos) + " sky";
             case CHUNK_INFO -> mc.worldRenderer.getChunksDebugString();
             case BIOME -> world.getBiome(pos).getKey().map(k -> k.getValue().getPath()).orElse("Unknown");
-            case DIFFICULTY -> world.getDifficulty().getName();
+            case DIFFICULTY -> world.getDifficulty().name().toLowerCase(Locale.ROOT);
             case SPAWN -> spawn(mc, now);
             case SHADER -> Objects.toString(mc.gameRenderer.getPostProcessorId(), "None");
             case SOUNDS -> mc.getSoundManager().getDebugString();
@@ -206,15 +213,23 @@ public final class ShoreF3 {
         int perColumn = Math.min(capacity, (rows.size() + columns - 1) / columns);
         int columnWidth = Math.max(8, (width - 10) / columns);
         if (perColumn == 0) return;
-        for (int i = 0; i < Math.min(rows.size(), perColumn * columns); i++) {
-            Line row = rows.get(i);
+        if (layoutRows != rows || layoutWidth != columnWidth) {
+            var measured = new ArrayList<DrawLine>(rows.size());
+            for (Line row : rows) {
+                String text = mc.textRenderer.trimToWidth(row.text(), Math.max(1, columnWidth - 8));
+                measured.add(new DrawLine(text, mc.textRenderer.getWidth(text), row.color()));
+            }
+            layout = measured;
+            layoutRows = rows;
+            layoutWidth = columnWidth;
+        }
+        for (int i = 0; i < Math.min(layout.size(), perColumn * columns); i++) {
+            DrawLine row = layout.get(i);
             int x = 5 + i / perColumn * columnWidth - slide;
             int y = 5 + i % perColumn * 12;
-            String text = mc.textRenderer.trimToWidth(row.text(), Math.max(1, columnWidth - 8));
-            int length = mc.textRenderer.getWidth(text);
-            if (c.debugPanelOpacity > 0) ctx.fill(x, y, x + length + 6, y + 12,
+            if (c.debugPanelOpacity > 0) ctx.fill(x, y, x + row.width() + 6, y + 12,
                 Math.round(c.debugPanelOpacity * 2.55f * opacity) << 24 | c.menuBackgroundColor);
-            ctx.drawText(mc.textRenderer, text, x + 3, y + 2, alpha << 24 | row.color(), c.debugShadow);
+            ctx.drawText(mc.textRenderer, row.text(), x + 3, y + 2, alpha << 24 | row.color(), c.debugShadow);
         }
     }
 

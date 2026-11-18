@@ -45,7 +45,8 @@ hud = 'net.minecraft.client.gui.components.DebugScreenOverlay' if modern else 'n
 mixin = src / 'mixin'
 
 living_methods = methods(living)
-update = unique([n+d for n,d,b in living_methods if d == '(L'+entity+';L'+state+';F)V'], 'mob render-state extraction')
+update_name = 'extractRenderState' if modern else 'updateRenderState'
+update = unique([n+d for n,d,b in living_methods if n == update_name and d == '(L'+entity+';L'+state+';F)V'], 'mob render-state extraction')
 tint_name = 'getModelTint' if modern else 'getMixColor'
 tint_desc = '(L'+state+';)I'
 render = unique([n+d for n,d,b in living_methods if tint_name+':'+tint_desc in b and d.startswith('(L'+state+';')], 'mob model tint')
@@ -80,6 +81,9 @@ f.write_text(code,encoding='utf-8')
 
 if modern:
     f=src/'ShoreF3.java';code=f.read_text(encoding='utf-8')
+    sound_api=dump('net.minecraft.client.sounds.SoundManager')
+    if ' getChannelDebugString()' in sound_api:
+        code=re.sub(r'case SOUNDS -> [^;]+;', 'case SOUNDS -> mc.getSoundManager().getChannelDebugString();', code)
     level_api=dump(level_renderer)
     if ' getSectionStatistics(' not in level_api:
         code=re.sub(r'case CHUNK_INFO -> [^;]+;', 'case CHUNK_INFO -> mc.levelExtractor.sectionStatistics();', code)

@@ -18,8 +18,16 @@ final class ShoreMenuBackground {
     private static final Path FILE = FabricLoader.getInstance().getConfigDir().resolve("shoremod/menu-background.png");
     private static int width, height, generation;
     private static boolean busy, attempted;
+    private static String lastError = "";
 
     private ShoreMenuBackground() {}
+
+    static String status() {
+        if (busy) return "Loading image...";
+        if (!lastError.isEmpty()) return lastError;
+        if (width > 0) return width + " x " + height;
+        return ShoreClient.config.menuImage ? "Loading on next frame" : "Hidden";
+    }
 
     static void importImage(Path path) {
         MinecraftClient.getInstance().execute(() -> load(path, true));
@@ -32,6 +40,7 @@ final class ShoreMenuBackground {
         }
         busy = true;
         attempted = true;
+        lastError = "";
         int request = generation;
         var client = MinecraftClient.getInstance();
         Thread worker = new Thread(() -> {
@@ -63,6 +72,7 @@ final class ShoreMenuBackground {
                 client.execute(() -> {
                     if (generation != request) return;
                     busy = false;
+                    lastError = "Import failed";
                     ShoreClient.tellError("Could not load menu background. " + error.getMessage());
                 });
             } finally {
@@ -98,6 +108,7 @@ final class ShoreMenuBackground {
                 ShoreClient.tell("Menu background imported.");
             }
         } catch (Exception error) {
+            lastError = "Texture unavailable";
             ShoreClient.tellError("Could not apply menu background. " + error.getMessage());
         } finally {
             if (texture == null) pixels.close(); else if (!transferred) texture.close();
@@ -116,6 +127,7 @@ final class ShoreMenuBackground {
         generation++;
         busy = false;
         attempted = false;
+        lastError = "";
         if (width > 0) MinecraftClient.getInstance().getTextureManager().destroyTexture(ID);
         width = height = 0;
     }

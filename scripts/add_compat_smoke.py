@@ -19,8 +19,9 @@ public final class ShoreCompatSmoke {{
   }});
   net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents.END_CLIENT_TICK.register(client->{{
    if(started==0||done)return;
-   if(!({current} instanceof ShoreScreen)&&!({current} instanceof CrosshairEditorScreen)&&{overlay}==null&&System.nanoTime()-lastOpen>1_000_000_000L){{lastOpen=System.nanoTime();ShoreClient.openNextTick(()->new ShoreScreen({current}));}}
-   if({current} instanceof CrosshairEditorScreen&&{overlay}==null){{frames++;if(frames>=150){{done=true;ShoreClient.LOG.info("SHORE_COMPAT_SMOKE_PASS target={target}");{stop};}}}}
+   if(!({current} instanceof ShoreScreen)&&!({current} instanceof CrosshairEditorScreen)&&!({current} instanceof ShoreGameScreen)&&{overlay}==null&&System.nanoTime()-lastOpen>1_000_000_000L){{lastOpen=System.nanoTime();ShoreClient.openNextTick(()->new ShoreScreen({current}));}}
+   if({current} instanceof CrosshairEditorScreen&&{overlay}==null){{frames++;if(frames>=150&&stage==6){{stage++;ShoreClient.openNextTick(ShoreGameSmoke::next);}}}}
+   if({current} instanceof ShoreGameScreen game&&{overlay}==null&&ShoreGameSmoke.advance(game)){{done=true;ShoreClient.LOG.info("SHORE_COMPAT_SMOKE_PASS target={target}");{stop};}}
    if({current} instanceof ShoreScreen&&{overlay}==null){{
     if(frames>=20&&stage==0){{((ShoreScreen){current}).showModule("motionblur");ShoreMotionBlur.verifyBackend();stage++;}}
     if(frames>=40&&stage==1){{((ShoreScreen){current}).showModule("crystals");stage++;}}
@@ -35,6 +36,35 @@ public final class ShoreCompatSmoke {{
 }}
 '''
 (src/'net/shoresmp/fabric/ShoreCompatSmoke.java').write_text(code,encoding='utf-8')
+# Exercise real form, wheel and board draw calls on each target without a multiplayer server.
+import json
+games=[{'op':'give.home'},
+       {'op':'give.state','id':'demo','code':'SHORE','reward':'Crate key','rewardType':'custom','ends':0,'entries':2,'names':['A','B'],'host':'Host','joined':True,'finished':True,'winner':'B'},
+       {'op':'ttt.home'},
+       {'op':'ttt.state','id':'demo','x':'A','o':'B','stake':'5.00','stage':'play','turn':'X','you':'X','board':'XO.......','message':'Your turn','expires':9999999999999}]
+game_code='''package net.shoresmp.fabric;
+final class ShoreGameSmoke {
+ private static final boolean ACTIVE=Boolean.getBoolean("shoremod.compatSmoke");
+ private static final String[] snapshots={SNAPSHOTS};
+ private static int index, frames;
+ private static boolean loaded;
+ static void rendered(){if(ACTIVE)frames++;}
+ static ShoreGameScreen next(){return new ShoreGameScreen(index<2?ShoreGames.Kind.GIVEAWAY:ShoreGames.Kind.TICTACTOE,"");}
+ static boolean advance(ShoreGameScreen screen){
+  if(!loaded){
+   screen.receive(com.google.gson.JsonParser.parseString(snapshots[index]).getAsJsonObject());
+   loaded=true;frames=0;
+  }else if(frames>=3){
+   if(++index==snapshots.length)return true;
+   loaded=false;frames=0;ShoreClient.openNextTick(ShoreGameSmoke::next);
+  }
+  return false;
+ }
+}
+'''.replace('SNAPSHOTS',','.join(json.dumps(json.dumps(s)) for s in games))
+(src/'net/shoresmp/fabric/ShoreGameSmoke.java').write_text(game_code,encoding='utf-8')
+p=src/'net/shoresmp/fabric/ShoreGameScreen.java';s=p.read_text(encoding='utf-8').replace('        ui.end();','        ui.end(); ShoreGameSmoke.rendered();')
+p.write_text(s,encoding='utf-8')
 p=src/'net/shoresmp/fabric/ShoreClient.java';s=p.read_text(encoding='utf-8').replace('config = Config.load();','config = Config.load(); if(Boolean.getBoolean("shoremod.compatSmoke"))ShoreCompatSmoke.install();');p.write_text(s,encoding='utf-8')
 p=src/'net/shoresmp/fabric/ShoreScreen.java';s=p.read_text(encoding='utf-8')
 s=s.replace('int guiX,int guiY,float delta){','int guiX,int guiY,float delta){ShoreCompatSmoke.rendered();')

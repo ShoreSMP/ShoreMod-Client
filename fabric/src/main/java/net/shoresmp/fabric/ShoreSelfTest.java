@@ -194,6 +194,39 @@ final class ShoreSelfTest {
     }
     private static void planHud(){
         enterWorld();
+        float[] noonAngle = new float[1];
+        step(2,c->{
+            var cfg=ShoreClient.config;
+            cfg.timeChanger=true;cfg.timePreset=1;
+            float rain=c.world.getRainGradient(1),thunder=c.world.getThunderGradient(1);
+            cfg.weatherChanger=true;cfg.weatherMode=3;cfg.weatherIntensity=75;
+            log(verdict(c.world.getRainGradient(1)==0.75f&&c.world.getThunderGradient(1)==0.75f)+" local thunder and rain reach world rendering");
+            cfg.weatherMode=1;
+            log(verdict(c.world.getRainGradient(1)==0&&c.world.getThunderGradient(1)==0)+" clear weather suppresses server precipitation locally");
+            cfg.weatherChanger=false;
+            log(verdict(c.world.getRainGradient(1)==rain&&c.world.getThunderGradient(1)==thunder)+" disabling weather immediately restores server gradients");
+            cfg.fovChanger=true;cfg.customBaseFov=true;cfg.baseFov=95;
+            log(verdict(c.options.getFov().getValue()==95)+" FOV changer reaches the game option");
+            boolean sprinting=c.player.isSprinting();c.player.setSprinting(true);
+            cfg.sprintFov=0;float vanillaSprint=c.player.getFovMultiplier(true,1);
+            cfg.sprintFov=20;
+            log(verdict(Math.abs(c.player.getFovMultiplier(true,1)-vanillaSprint-0.2f)<0.001f)+" sprint adjustment changes the actual player FOV");
+            c.player.setSprinting(sprinting);cfg.sprintFov=0;cfg.customBaseFov=false;cfg.fovChanger=false;
+            cfg.fullbright=true;cfg.brightnessMode=1;cfg.brightnessFixed=150;
+            log(verdict(c.options.getGamma().getValue()==1.5)+" fixed brightness reaches render gamma");
+            cfg.fullbright=false;cfg.brightnessMode=0;
+        });
+        step(6,c->{
+            noonAngle[0]=c.world.getEnvironmentAttributes().getAttributeValue(net.minecraft.world.attribute.EnvironmentAttributes.SUN_ANGLE_VISUAL,c.player.getBlockPos());
+            long actualTime=c.world.getTimeOfDay();
+            ShoreClient.config.timePreset=3;
+            log(verdict(c.world.getTimeOfDay()==actualTime)+" changing the sky preserves the server clock and day counter");
+        });
+        step(6,c->{
+            float nightAngle=c.world.getEnvironmentAttributes().getAttributeValue(net.minecraft.world.attribute.EnvironmentAttributes.SUN_ANGLE_VISUAL,c.player.getBlockPos());
+            log(verdict(Math.abs(noonAngle[0]-nightAngle)>90)+" time presets change the sampled sun position from noon to midnight");
+            ShoreClient.config.timeChanger=false;
+        });
         step(2,c->{
             var cfg=ShoreClient.config;cfg.hudClock=true;cfg.hudFps=cfg.hudPing=cfg.hudCoords=cfg.hudBiome=cfg.hudArmor=false;
             cfg.keystrokes=cfg.itemCounter=cfg.potionHud=cfg.targetHud=cfg.cps=cfg.toggleSprintHud=false;
@@ -297,7 +330,25 @@ final class ShoreSelfTest {
             log(verdict(ShoreCrystals.ready())+" custom crystal texture reaches the actual renderer");
             ShoreClient.config.motionBlur=false;ShoreMotionBlur.clear();
         });
-        step(3,c->{c.debugHudEntryList.setF3Enabled(true);});
+        step(3,c->{
+            var cfg=ShoreClient.config;
+            cfg.mobOverlay=true;
+            cfg.mobMode=1;
+            cfg.mobAlways=true;
+            var pig=net.minecraft.entity.EntityType.PIG.create(c.world,net.minecraft.entity.SpawnReason.TRIGGERED);
+            pig.setPosition(c.player.getX()+2,c.player.getY(),c.player.getZ());
+            var renderer=c.getEntityRenderDispatcher().getRenderer(pig);
+            var state=renderer.getAndUpdateRenderState(pig,1f);
+            log(verdict(c.hasOutline(pig)&&state.outlineColor==(0xFF000000|cfg.mobOutlineColor))+" mob outlines use the configured color in the extracted renderer state");
+            log(verdict(((ShoreMobOverlay.State)state).shore$getFill()==ShoreMobOverlay.fill(pig)&&ShoreMobOverlay.fill(pig)!=0)+" full mob overlay extracts a model tint");
+            cfg.mobAlways=false;
+            log(verdict(!ShoreMobOverlay.selected(pig)&&!ShoreMobOverlay.selected(c.player))+" targeted mob mode excludes untargeted mobs and players");
+            cfg.mobOverlay=false;
+            for(var field:ShoreF3.Field.values())cfg.debugFields.put(field.name(),true);
+            cfg.debugColors.put("FPS",0x19B8CF);
+            log(verdict(ShoreF3.Field.FPS.color(cfg)==0x19B8CF&&ShoreF3.Field.POSITION.reduced())+" custom F3 field colors and reduced-debug policy");
+            c.debugHudEntryList.setF3Enabled(true);
+        });
         step(10,c->shot(c,"better_f3"));
         step(2,c->{c.debugHudEntryList.setF3Enabled(false);c.setScreen(new net.minecraft.client.gui.screen.ingame.InventoryScreen(c.player));});
         step(10,c->{

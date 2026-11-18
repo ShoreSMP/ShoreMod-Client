@@ -187,6 +187,7 @@ with (root/'fabric/build.gradle').open('a',encoding='utf-8') as output:
  output.write("\ntasks.register('compatClasspath') { doLast { file('build/compat-classpath.json').parentFile.mkdirs(); file('build/compat-classpath.json').text = groovy.json.JsonOutput.toJson(configurations.compileClasspath.files*.absolutePath) } }\n")
 
 import runpy
+runpy.run_path(str(root/'scripts/compat_world150.py'),init_globals={'root':root,'target':target,'stage':'prepare'})
 runpy.run_path(str(root/'scripts/add_compat_smoke.py'),init_globals={'src':src,'res':res,'root':root,'modern':modern,'target':target})
 
 
@@ -201,6 +202,5 @@ if target in ['1.21.5','1.21.8']:
  code=file.read_text(encoding='utf-8').replace('mc.debugHudEntryList.isF3Enabled()','mc.getDebugHud().shouldShowDebugHud()')
  file.write_text(code,encoding='utf-8')
 
-runpy.run_path(str(root/'scripts/compat_world150.py'),init_globals={'root':root,'target':target,'stage':'prepare'})
 import subprocess
 subprocess.run([sys.executable,str(root/'scripts/compat_debug150.py'),'prepare',target],check=True)

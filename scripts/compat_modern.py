@@ -50,7 +50,7 @@ for p in src.rglob('*.java'):
         java.awt.EventQueue.invokeLater(()->{
             try{
                 var dialog=new java.awt.FileDialog((java.awt.Frame)null,background?"Choose a PNG menu background":"Choose a PNG or JPEG crosshair",java.awt.FileDialog.LOAD);
-                dialog.setFilenameFilter((directory,name)->name.toLowerCase(java.util.Locale.ROOT).matches(".*\\\\.(png|jpe?g)"));
+                dialog.setFilenameFilter((directory,name)->{String lower=name.toLowerCase(java.util.Locale.ROOT);return lower.endsWith(".png")||(!background&&(lower.endsWith(".jpg")||lower.endsWith(".jpeg")));});
                 dialog.setVisible(true);
                 var chosen=dialog.getFile()==null?null:java.nio.file.Path.of(dialog.getDirectory(),dialog.getFile());dialog.dispose();
                 if(chosen!=null){if(background)ShoreMenuBackground.importImage(chosen);else importCrosshair(chosen);}

@@ -580,6 +580,7 @@ public final class ShoreScreen extends Screen {
                 color("Enabled controls","Active toggles and buttons",()->c.menuEnabledColor,v->c.menuEnabledColor=v);
                 section("Background image");
                 action("Choose a background","Choose a local PNG or drag it onto General settings","Browse",()->chooseImage(true));
+                info("Image status","PNG files up to 24 MiB and 24 megapixels",ShoreMenuBackground::status);
                 toggle("Show image","Use the imported background in the ShoreMod menu",()->c.menuImage,v->{c.menuImage=v;if(!v)ShoreMenuBackground.clear();});
                 segment("Image fit","",new String[]{"Cover","Fit","Stretch"},()->c.menuImageFit,v->c.menuImageFit=v);
                 slider("Image opacity","",0,100,1,"%",()->c.menuImageOpacity,v->c.menuImageOpacity=v);
@@ -910,19 +911,19 @@ public final class ShoreScreen extends Screen {
         if(hov)tooltip="Favorites only";
         drawInput(search,searchX,cy,searchW,ch,"search");
         // chips
-        float x=ix;
+        float x=ix,chipY=cy,rowEnd=searchX-12;
         for(String cat:CATEGORIES){
             float w=Math.max(44,ui.width(cat,sel0(cat),13)+24);
-            if(x+w>searchX-12)break;
+            if(x+w>rowEnd){x=ix;chipY+=ch+7;rowEnd=ix+iw;}
             boolean sel=category.equals(cat);
-            boolean h=hit(x,cy,w,ch,()->{category=cat;scroll=scrollTarget=0;});
-            ui.round(x,cy,w,ch,8,sel?(h?ShoreUi.mix(accent,0xFFFFFFFF,0.12f):accent):h?CHIP_HOVER:CHIP);
-            ui.centered(cat,sel,13,x+w/2,cy+(ch-13)/2,sel?onAccent():h?TEXT:MUTED,w-10);
+            boolean h=hit(x,chipY,w,ch,()->{category=cat;scroll=scrollTarget=0;});
+            ui.round(x,chipY,w,ch,8,sel?(h?ShoreUi.mix(accent,0xFFFFFFFF,0.12f):accent):h?CHIP_HOVER:CHIP);
+            ui.centered(cat,sel,13,x+w/2,chipY+(ch-13)/2,sel?onAccent():h?TEXT:MUTED,w-10);
             x+=w+7;
         }
 
         // cards
-        float top=cy+ch+16,viewH=py+ph-10-top,gap=14;
+        float top=chipY+ch+16,viewH=py+ph-10-top,gap=14;
         int cols=Math.max(2,(int)((iw+gap)/(ShoreClient.config.menuCardWidth+gap)));
         float cardW=(iw-8-gap*(cols-1))/cols,cardH=Math.clamp(cardW*0.8f,150,220);
         List<Module> list=visibleModules();
@@ -1228,7 +1229,13 @@ public final class ShoreScreen extends Screen {
         float labelW=(wide(r)?w:w-cw-12)-(tx-x);
         ui.text(r.title,false,FS,tx,cy-FS/2,on?TEXT:FAINT,labelW);
         if(!r.help.isEmpty()&&(labelHover||over(tx,cy-10,Math.min(labelW,ui.width(r.title,false,FS)),20)))tooltip=r.help;
-        if(r.kind==FIELD)drawInput(r.input,x,y+28,w,28,null);
+        if(r.kind==FIELD){
+            if(on)drawInput(r.input,x,y+28,w,28,null);
+            else {
+                ui.round(x,y+28,w,28,5,INPUT);
+                ui.text(r.input.text,false,13,x+12,y+35,FAINT,w-24);
+            }
+        }
         if(r.kind==ACCENT){
             float sx=x,sy=y+28;
             for(int c:ACCENTS){
