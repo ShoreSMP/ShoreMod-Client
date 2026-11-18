@@ -12,6 +12,28 @@ public final class CoreTest {
     private static int checks;
     private static void check(boolean value, String message) { checks++; if (!value) throw new AssertionError(message); }
     public static void main(String[] args) throws Exception {
+        long[] tick={10_000_000};
+        var watch=new Stopwatch(()->tick[0]);
+        watch.startStop(); tick[0]+=1_234_567_890;
+        check(watch.milliseconds()==1234,"stopwatch uses monotonic milliseconds");
+        watch.pauseResume(); tick[0]+=8_000_000_000L;
+        check(watch.milliseconds()==1234,"paused time is excluded");
+        watch.pauseResume(); tick[0]+=1_000_000_000L; watch.startStop();
+        check(watch.milliseconds()==2234,"stopping retains the result");
+        watch.startStop(); check(watch.milliseconds()==0,"restarting begins a fresh run");
+        watch.reset(); tick[0]+=1_000_000; check(watch.milliseconds()==0,"reset leaves timer idle");
+        check(Stopwatch.display(3_661_007,true).equals("1:01:01.007"),"multi-hour millisecond format");
+        check(Stopwatch.display(59_999,false).equals("00:59"),"whole seconds mode");
+        var wallpaper=Files.createTempFile("shore-menu-test-", ".png");
+        try {
+            var source=new BufferedImage(3600,900,BufferedImage.TYPE_INT_ARGB); source.setRGB(0,0,0xFF55AAFF);
+            ImageIO.write(source,"png",wallpaper.toFile()); source.flush();
+            var resized=MenuImages.read(wallpaper);
+            check(resized.getWidth()==2048 && resized.getHeight()==512,"menu PNG preserves aspect ratio and caps texture size");
+            resized.flush(); Files.writeString(wallpaper,"invalid png");
+            boolean rejected=false; try { MenuImages.read(wallpaper); } catch(IOException expected) { rejected=true; }
+            check(rejected,"invalid background image is rejected");
+        } finally { Files.deleteIfExists(wallpaper); }
         var multiline=ChatSenders.match("[SEAMAN] Nolan\nhello world",List.of("Nolan"));
         check(multiline!=null&&multiline.start()==9,"multiline sender is located after rank");
         check(ChatSenders.sender("[VIP] .Bedrock\nhello",List.of(".Bedrock")).equals(".Bedrock"),"Bedrock name in multiline header");
@@ -57,6 +79,9 @@ public final class CoreTest {
         check(captures>0&&captures<=9,"protected recording is capped near eight readbacks per second");
         budget.reset();int highRate=0;for(long now=1;now<1_000_000_000L;now+=1_000_000L){budget.observe(now);if(budget.allow(now,60,1920L*1080,false))highRate++;}
         check(highRate>=58&&highRate<=60,"explicit high-rate mode supports sixty capture requests per second");
+        budget.reset();long resumedAt=180_000_000_000L;
+        check(budget.allow(resumedAt,8,1920L*1080,true)&&!budget.allow(resumedAt+1,8,1920L*1080,true),"first capture reserves a full interval");
+        check(budget.allow(resumedAt+2_000_000_000L,8,1920L*1080,true)&&!budget.allow(resumedAt+2_000_000_001L,8,1920L*1080,true),"resuming from a menu avoids a catch-up readback");
         budget.reset();check(!budget.allow(1,30,33_177_600,true),"oversized framebuffers cannot allocate giant capture images");
         budget.reset();budget.requested(100_000_000L);check(budget.allow(1,30,1920L*1080,true)&&!budget.allow(500_000_001L,30,1920L*1080,true),"costly GPU requests force longer capture intervals");
         budget.reset();for(long now=1;now<10_000_000_000L;now+=66_666_667L)budget.observe(now);
@@ -127,6 +152,10 @@ public final class CoreTest {
             try { Payments.amount(invalid); throw new AssertionError("amount accepted"); } catch (IllegalArgumentException expected) { checks++; }
         }
         var triggers = List.of("blacklisted modifications", "bug abusing", "banned");
+        var editedPhrases = new ArrayList<>(List.of("suspended"));
+        check(PunishmentMatcher.matches("Suspended", editedPhrases),"configured phrase matches");
+        editedPhrases.set(0,"removed");
+        check(!PunishmentMatcher.matches("suspended", editedPhrases) && PunishmentMatcher.matches("removed", editedPhrases),"editing phrases refreshes compiled matchers");
         check(PunishmentMatcher.matches("§cBLACKLISTED MODIFICATIONS", triggers), "formatted trigger");
         check(!PunishmentMatcher.matches("You are unbanned", triggers), "word boundaries");
         var personalReasons=List.of("blacklisted modifications","bug abusing","cheating","exploiting","banned");
@@ -170,6 +199,9 @@ public final class CoreTest {
         check(ring.snapshot(45).size() == 2, "ring bounds");
         check(ring.snapshot(19).isEmpty(), "snapshot excludes future frames");
         ring.add(new FrameRing.Frame(50,new byte[8],4,4)); check(ring.snapshot(50).size()==1, "resize reset");
+        ring.add(new FrameRing.Frame(55,new byte[1],4,4),6);
+        ring.add(new FrameRing.Frame(58,new byte[1],4,4),6);
+        check(ring.snapshot(58).size()==2 && ring.snapshot(58,2).size()==1,"configured clip length bounds retention and export");
         var bytes = new ByteArrayOutputStream(); ImageIO.write(new BufferedImage(32,32,BufferedImage.TYPE_INT_RGB), "jpg", bytes);
         var video = Files.createTempFile("shoremod-test-", ".avi");
         try {

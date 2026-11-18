@@ -58,6 +58,19 @@ public final class ShoreSettingsChecks {
                 if(previous==null)java.nio.file.Files.deleteIfExists(file);else java.nio.file.Files.write(file,previous);
                 ShoreHud.CrosshairImage.invalidate();
             }
+            int watchStyle=c.watchStyle;
+            boolean autoWidth=c.watchAutoWidth;
+            try {
+                screen.showModule("stopwatch");
+                row(screen,"Display mode").iset.accept(0);
+                row(screen,"Background width").iset.accept(1);
+                check(row(screen,"Fixed width").available.getAsBoolean(),"fixed stopwatch width is editable");
+                row(screen,"Display mode").iset.accept(2);
+                check(!row(screen,"Fixed width").available.getAsBoolean(),"text-only stopwatch hides box controls");
+                screen.showPage("GENERAL");
+                check(row(screen,"Choose a background").action!=null,"background picker is wired");
+                check(row(screen,"Image fit").options.length==3,"background supports cover, fit and stretch");
+            } finally { c.watchStyle=watchStyle;c.watchAutoWidth=autoWidth; }
             ShoreClient.LOG.info("SHORE_CUSTOM_SETTINGS_PASS");
         }catch(ReflectiveOperationException|java.io.IOException e){throw new IllegalStateException(e);}
         finally{c.fullbright=enabled;c.fullbrightStrength=strength;c.hudSizes.put("fps",size);c.crosshairCustomColor=color;c.crosshairColor=mode;c.save();}

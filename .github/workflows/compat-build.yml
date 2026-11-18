@@ -1,7 +1,7 @@
 name: Build and release ShoreMod
 on:
   push:
-    branches: ['main', 'fix/hitbox-hud-141']
+    branches: ['main', 'update/customization-150']
     paths: ['fabric/**', 'common/**', 'plugin/**', 'scripts/**', 'build.gradle', 'gradle.properties', 'settings.gradle', 'gradle/**', '.github/workflows/compat-build.yml']
   workflow_dispatch:
 concurrency:
@@ -81,7 +81,7 @@ jobs:
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
       - run: python3 scripts/prepare_compat.py '${{ matrix.minecraft }}'
-      - run: bash gradlew :common:coreTest :fabric:build :fabric:compatClasspath --console=plain --stacktrace
+      - run: bash gradlew :common:coreTest :fabric:compatClasspath --console=plain --stacktrace
       - run: python3 scripts/finalize_compat.py '${{ matrix.minecraft }}'
       - run: bash gradlew :fabric:build --console=plain --stacktrace
       - run: python3 scripts/verify_compat.py '${{ matrix.minecraft }}'
@@ -292,7 +292,7 @@ jobs:
               with zipfile.ZipFile(path) as jar:
                   if 'fabric.mod.json' in jar.namelist():
                       meta=json.loads(jar.read('fabric.mod.json'))
-                      assert meta['version']=='1.4.1',meta
+                      assert meta['version']=='1.5.0',meta
                       versions.add(meta['depends']['minecraft'])
                   else:
                       assert 'plugin.yml' in jar.namelist()
@@ -302,17 +302,17 @@ jobs:
           print('PASS: seven client versions; companion plugin included only in private checkout')
           PY
       - name: Package one universal client
-        run: python3 scripts/package_universal.py jars universal/ShoreMod-1.4.1.jar
+        run: python3 scripts/package_universal.py jars universal/ShoreMod-1.5.0.jar
       - name: Verify real Fabric version selection
-        run: python3 scripts/check_universal.py universal/ShoreMod-1.4.1.jar
+        run: python3 scripts/check_universal.py universal/ShoreMod-1.5.0.jar
       - uses: actions/upload-artifact@v4
         with:
-          name: ShoreMod-1.4.1
+          name: ShoreMod-1.5.0
           if-no-files-found: error
           path: universal/*
       - uses: actions/upload-artifact@v4
         with:
-          name: ShoreMod-1.4.1-All-Jars
+          name: ShoreMod-1.5.0-All-Jars
           path: jars/*.jar
           if-no-files-found: error
 
@@ -322,17 +322,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          if gh release view v1.4.1 >/dev/null 2>&1; then
-            echo "Release v1.4.1 already exists; preserving its published assets."
+          if gh release view v1.5.0 >/dev/null 2>&1; then
+            echo "Release v1.5.0 already exists; preserving its published assets."
             exit 0
           fi
           cat > release-notes.txt <<'NOTES'
-          Fixes the ShoreMod HUD, crosshair, waypoints and visual overlays disappearing when vanilla hitboxes or another always-on debug entry are enabled. Better F3 now replaces only the actual F3 panel, preserving individual debug features.
+          Configure the local time, weather, brightness, FOV and dropped-item animation. The custom F3 panel, mob overlay, stopwatch and settings appearance have new controls. Import a PNG to use as your menu background.
 
-          ShoreMod hitboxes now default to following loaded entities rather than a 24-block range. Custom range remains available up to 256 blocks, and the entity limit is adjustable up to 256. Server tracking/chunk loading still determines which entities exist on the client. Nearest-candidate selection and line-of-sight work remain bounded.
+          The multiplayer giveaway wheel and tic-tac-toe use the updated ShoreMod server companion. Both players must agree to the same in-game stake before a wager starts.
 
-          One universal JAR supports 1.21.5, 1.21.8, 1.21.10, 1.21.11, 26.1, 26.2 and 26.3. Replace your old ShoreMod JAR. Matching Fabric API is required.
+          This release also updates clip recording, movement-triggered motion blur and hitbox rendering.
 
-          Includes a real framebuffer regression with vanilla hitboxes enabled and Better F3 on, plus separate full-F3 detection and loaded/custom hitbox range checks.
+          Install the Fabric API for your Minecraft version and replace your previous ShoreMod JAR. The universal client supports 1.21.5, 1.21.8, 1.21.10, 1.21.11, 26.1, 26.2 and 26.3.
           NOTES
-          gh release create v1.4.1 universal/ShoreMod-1.4.1.jar universal/ShoreMod-1.4.1.jar.sha256 --target "$GITHUB_SHA" --title "ShoreMod 1.4.1" --notes-file release-notes.txt
+          gh release create v1.5.0 universal/ShoreMod-1.5.0.jar universal/ShoreMod-1.5.0.jar.sha256 --target "$GITHUB_SHA" --title "ShoreMod 1.5.0" --notes-file release-notes.txt

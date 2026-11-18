@@ -24,7 +24,7 @@ public final class ShoreMotionBlur {
   }
  }
  private static Object world;private static int width,height,next,count,pending=-1;
- private static long lastCapture;private static float yaw,pitch;private static double x,y,z;
+ private static long lastCapture,lastMovement;private static float yaw,pitch;private static double x,y,z;
  private static Method create,view,encoder,copy;private static Object device,sampler;
  private static String error="";private static boolean failed;
  private ShoreMotionBlur(){}
@@ -33,7 +33,7 @@ public final class ShoreMotionBlur {
  public static void clear(){
   var mc=MinecraftClient.getInstance();
   for(var frame:frames)mc.getTextureManager().destroyTexture(frame.id);
-  frames.clear();count=next=0;pending=-1;lastCapture=0;world=null;
+  frames.clear();count=next=0;pending=-1;lastCapture=lastMovement=0;world=null;
  }
  private static Method method(Class<?> type,String name,int parameters){
   for(var m:type.getMethods())if(m.getName().equals(name)&&m.getParameterCount()==parameters){m.setAccessible(true);return m;}
@@ -77,21 +77,27 @@ public final class ShoreMotionBlur {
  public static void capture(){
   var mc=MinecraftClient.getInstance();var c=ShoreClient.config;
   if(c==null||!c.motionBlur||c.blurStrength==0||failed||mc.player==null||mc.world==null||mc.currentScreen!=null||mc.isPaused()||(c.blurAutoProtect&&mc.getCurrentFps()<c.blurMinFps)){
-   if(!frames.isEmpty())clear();return;
+   if(world!=null)clear();return;
   }
   var fb=mc.getFramebuffer();int w=fb.textureWidth,h=fb.textureHeight;
   if(w<=0||h<=0)return;
   long bytes=(long)w*h*4;
   int capacity=(int)Math.min(c.blurSamples+1,((long)c.blurMemoryMb*1048576)/Math.max(1,bytes));
-  if(capacity<2){if(!frames.isEmpty())clear();return;}
-  boolean reset=world!=mc.world||width!=w||height!=h||frames.size()!=capacity;
+  if(capacity<2){if(world!=null)clear();return;}
+  // During a stationary start the ring is deliberately empty until the first movement.
+  boolean reset=world!=mc.world||width!=w||height!=h||(!frames.isEmpty()&&frames.size()!=capacity);
   if(reset){clear();world=mc.world;width=w;height=h;x=mc.player.getX();y=mc.player.getY();z=mc.player.getZ();yaw=mc.player.getYaw();pitch=mc.player.getPitch();}
   double travel=mc.player.squaredDistanceTo(x,y,z);
   if(travel>64){clear();return;}
   float rotation=Math.abs(net.minecraft.util.math.MathHelper.wrapDegrees(mc.player.getYaw()-yaw))+Math.abs(mc.player.getPitch()-pitch);
   x=mc.player.getX();y=mc.player.getY();z=mc.player.getZ();yaw=mc.player.getYaw();pitch=mc.player.getPitch();
-  if(c.blurMovingOnly&&travel<0.000001&&rotation<0.01f){count=0;pending=-1;return;}
-  long now=System.nanoTime();if(now-lastCapture<1_000_000_000L/c.blurFps)return;
+  long now=System.nanoTime();
+  boolean moving=travel>=0.000001||rotation>=0.01f;
+  if(moving)lastMovement=now;
+  if(c.blurMovingOnly&&!moving&&(lastMovement==0||now-lastMovement>=c.blurMotionTail*1_000_000L)){
+   count=0;pending=-1;return;
+  }
+  if(now-lastCapture<1_000_000_000L/c.blurFps)return;
   try{
    Object source=fb.getColorAttachment();if(source==null)return;
    if(create==null)initialize(source);

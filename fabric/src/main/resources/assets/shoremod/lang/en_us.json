@@ -2,5 +2,12 @@
   "key.category.shoremod.controls": "ShoreMod",
   "key.shoremod.menu": "Open ShoreMod",
   "key.shoremod.clip": "Save last 30 seconds",
-  "key.shoremod.zoom": "Zoom (hold)"
+  "key.shoremod.zoom": "Zoom (hold)",
+  "key.shoremod.watch_start": "Stopwatch start / stop",
+  "key.shoremod.watch_pause": "Stopwatch pause / resume",
+  "key.shoremod.watch_reset": "Reset stopwatch",
+  "key.shoremod.waypoint": "Open waypoints",
+  "key.shoremod.custom_f3": "Alternate F3 panel",
+  "key.shoremod.custom_pie": "Alternate profiler pie chart",
+  "key.shoremod.custom_graph": "Alternate FPS and tick graphs"
 }

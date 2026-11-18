@@ -26,7 +26,6 @@ public final class ShoreVisuals {
     private static final Quaternionf inverseView=new Quaternionf();
     private static double cameraX,cameraY,cameraZ;
     private static String serverScope="";
-    private static List<String> debug=List.of();
     private static String blockName="";private static BlockPos blockPos;
     public static void fov(float value){if(Float.isFinite(value)&&value>0.01f&&value<179)fov=value;}
     public static void pop(){popAt=System.nanoTime();}
@@ -56,14 +55,15 @@ public final class ShoreVisuals {
     public static boolean hitboxInRange(Config c,double distanceSquared){return c.hitboxLoadedRange||distanceSquared<=(double)c.hitboxRange*c.hitboxRange;}
     public static void tick(MinecraftClient mc){
         var c=ShoreClient.config;
-        if(world!=mc.world||session!=ShoreClient.sessionEpoch){world=mc.world;session=ShoreClient.sessionEpoch;wasAlive=mc.player==null||mc.player.isAlive();entities=List.of();popAt=0;debug=List.of();serverScope=mc.world==null?"":scope(mc);}
+        ShoreF3.tick(mc);
+        if(world!=mc.world||session!=ShoreClient.sessionEpoch){world=mc.world;session=ShoreClient.sessionEpoch;wasAlive=mc.player==null||mc.player.isAlive();entities=List.of();popAt=0;serverScope=mc.world==null?"":scope(mc);}
         if(mc.player==null||mc.world==null)return;
         if(c.waypointAutoDeath&&wasAlive&&!mc.player.isAlive()&&c.savedWaypoints.size()<64){
             String name=c.waypointName,coords=c.waypointCoordinates;c.waypointName="Death "+(c.savedWaypoints.size()+1);c.waypointCoordinates="";
             saveWaypoint();c.waypointName=name;c.waypointCoordinates=coords;c.save();
         }
         wasAlive=mc.player.isAlive();
-        if(!c.coloredHitboxes&&!c.blockOverlay&&!c.betterF3)return;
+        if(!c.coloredHitboxes&&!c.blockOverlay)return;
         if(++ticks%4!=0)return;
         if(c.coloredHitboxes){
             var distance=Comparator.<Entity>comparingDouble(e->e.squaredDistanceTo(mc.player));
@@ -73,7 +73,11 @@ public final class ShoreVisuals {
             for(Entity entity:candidates){
                 if(entity==mc.player||!entity.isAlive()||entity.isInvisible()||(c.hitboxPlayersOnly&&!(entity instanceof PlayerEntity)))continue;
                 if(!hitboxInRange(c,entity.squaredDistanceTo(mc.player)))continue;
-                nearest.add(entity);if(nearest.size()>budget)nearest.poll();
+                if(nearest.size()==budget){
+                    if(distance.compare(entity,nearest.element())>=0)continue;
+                    nearest.remove();
+                }
+                nearest.add(entity);
             }
             var ordered=new ArrayList<>(nearest);ordered.sort(distance);
             var visible=new ArrayList<Entity>();
@@ -86,16 +90,6 @@ public final class ShoreVisuals {
         }else entities=List.of();
         blockPos=mc.crosshairTarget instanceof BlockHitResult hit&&hit.getType()==net.minecraft.util.hit.HitResult.Type.BLOCK?hit.getBlockPos():null;
         blockName=blockPos==null?"":mc.world.getBlockState(blockPos).getBlock().getName().getString();
-        if(c.betterF3&&ShoreDebug.isPanelOpen()){
-            var out=new ArrayList<String>();out.add("ShoreMod | "+mc.getCurrentFps()+" FPS");
-            if(c.debugCoordinates&&!mc.player.hasReducedDebugInfo()){out.add("XYZ "+mc.player.getBlockX()+" / "+mc.player.getBlockY()+" / "+mc.player.getBlockZ());out.add(mc.player.getHorizontalFacing().asString()+" | "+mc.world.getRegistryKey().getValue());out.add("Biome: "+mc.world.getBiome(mc.player.getBlockPos()).getKey().map(k->k.getValue().getPath()).orElse("Unknown"));}
-            if(c.debugTarget&&blockPos!=null){out.add("Looking at: "+blockName);if(!mc.player.hasReducedDebugInfo())out.add(blockPos.getX()+" / "+blockPos.getY()+" / "+blockPos.getZ());}
-            if(c.debugMemory){var rt=Runtime.getRuntime();out.add("Memory "+((rt.totalMemory()-rt.freeMemory())/1048576)+" / "+(rt.maxMemory()/1048576)+" MB");}
-            out.add("Recording: "+ShoreClient.recorder.status());debug=List.copyOf(out);
-        }
-    }
-    public static void debug(DrawContext ctx){
-        var mc=MinecraftClient.getInstance();int y=6;for(String line:debug){int w=mc.textRenderer.getWidth(line);ctx.fill(4,y-2,12+w,y+10,0xD0101217);ctx.drawText(mc.textRenderer,line,8,y,0xFFFFFFFF,false);y+=14;}
     }
     private record Point(float x,float y){}
     private static Point project(MinecraftClient mc,DrawContext ctx,double x,double y,double z){
@@ -103,30 +97,66 @@ public final class ShoreVisuals {
         if(v.z>=-0.08f)return null;
         return new Point(centerX+v.x*focal/-v.z,centerY-v.y*focal/-v.z);
     }
-    private static void line(DrawContext ctx,Point a,Point b,int color,int width){
-        if(a==null||b==null)return;float x=a.x,y=a.y,dx=b.x-x,dy=b.y-y,len=(float)Math.hypot(dx,dy),angle=(float)Math.atan2(dy,dx);
-        if(!Float.isFinite(len)||len>Math.max(ctx.getScaledWindowWidth(),ctx.getScaledWindowHeight())*4)return;
+    // These scratch vectors are owned by the render thread. Every edge shares the same eight corners.
+    private static final Vector3f[] corners = {
+        new Vector3f(),new Vector3f(),new Vector3f(),new Vector3f(),
+        new Vector3f(),new Vector3f(),new Vector3f(),new Vector3f()
+    };
+    private static final Vector3f lineStart=new Vector3f(), lineEnd=new Vector3f(), cornerEnd=new Vector3f();
+    private static void line(DrawContext ctx,float x,float y,float endX,float endY,int color,int width){
+        float dx=endX-x,dy=endY-y;
+        float left=-width,top=-width,right=ctx.getScaledWindowWidth()+width,bottom=ctx.getScaledWindowHeight()+width;
+        if(Math.max(x,endX)<left||Math.min(x,endX)>right||Math.max(y,endY)<top||Math.min(y,endY)>bottom)return;
+        // Clip long near-plane edges to the viewport before submitting them to the GUI renderer.
+        float start=0,end=1;
+        if(dx!=0){
+            float t1=(left-x)/dx,t2=(right-x)/dx;
+            start=Math.max(start,Math.min(t1,t2));end=Math.min(end,Math.max(t1,t2));
+        }
+        if(dy!=0){
+            float t1=(top-y)/dy,t2=(bottom-y)/dy;
+            start=Math.max(start,Math.min(t1,t2));end=Math.min(end,Math.max(t1,t2));
+        }
+        if(end<start)return;
+        x+=start*dx;y+=start*dy;
+        float len=(float)Math.hypot(dx,dy)*(end-start);
+        if(!Float.isFinite(len))return;
+        float angle=(float)Math.atan2(dy,dx);
         var m=ctx.getMatrices();m.pushMatrix();m.translate(x,y);m.rotate(angle);ctx.fill(0,-width/2,Math.max(1,(int)len),Math.max(1,width-width/2),color);m.popMatrix();
     }
-    private static Vector3f view(double x,double y,double z){return inverseView.transform(new Vector3f((float)(x-cameraX),(float)(y-cameraY),(float)(z-cameraZ)));}
-    private static void worldLine(MinecraftClient mc,DrawContext ctx,double ax,double ay,double az,double bx,double by,double bz,int color,int width){
-        var a=view(ax,ay,az);var b=view(bx,by,bz);float near=-0.08f;
+    private static void toView(Vector3f out,double x,double y,double z){
+        inverseView.transform(out.set((float)(x-cameraX),(float)(y-cameraY),(float)(z-cameraZ)));
+    }
+    private static void viewLine(DrawContext ctx,Vector3f a,Vector3f b,int color,int width){
+        float near=-0.08f;
         if(a.z>=near&&b.z>=near)return;
-        if(a.z>=near){float t=(near-b.z)/(a.z-b.z);a.lerp(b,1-t);}
-        if(b.z>=near){float t=(near-a.z)/(b.z-a.z);b.lerp(a,1-t);}
-        line(ctx,new Point(centerX+a.x*focal/-a.z,centerY-a.y*focal/-a.z),new Point(centerX+b.x*focal/-b.z,centerY-b.y*focal/-b.z),color,width);
+        float ax=a.x,ay=a.y,az=a.z,bx=b.x,by=b.y,bz=b.z;
+        if(az>=near){
+            float t=(near-bz)/(az-bz);
+            ax=bx+(ax-bx)*t;ay=by+(ay-by)*t;az=near;
+        }else if(bz>=near){
+            float t=(near-az)/(bz-az);
+            bx=ax+(bx-ax)*t;by=ay+(by-ay)*t;bz=near;
+        }
+        line(ctx,centerX+ax*focal/-az,centerY-ay*focal/-az,centerX+bx*focal/-bz,centerY-by*focal/-bz,color,width);
+    }
+    private static void worldLine(MinecraftClient mc,DrawContext ctx,double ax,double ay,double az,double bx,double by,double bz,int color,int width){
+        toView(lineStart,ax,ay,az);toView(lineEnd,bx,by,bz);viewLine(ctx,lineStart,lineEnd,color,width);
     }
     private static void box(MinecraftClient mc,DrawContext ctx,Box b,int color,int width){box(mc,ctx,b,color,width,0);}
     private static void box(MinecraftClient mc,DrawContext ctx,Box b,int color,int width,int style){
+        for(int i=0;i<corners.length;i++){
+            if(style==2&&(i&2)!=0)continue;
+            toView(corners[i],(i&1)==0?b.minX:b.maxX,(i&2)==0?b.minY:b.maxY,(i&4)==0?b.minZ:b.maxZ);
+        }
         for(int[] edge:EDGES){
             int i=edge[0],j=edge[1];
-            double ax=(i&1)==0?b.minX:b.maxX,ay=(i&2)==0?b.minY:b.maxY,az=(i&4)==0?b.minZ:b.maxZ;
-            double bx=(j&1)==0?b.minX:b.maxX,by=(j&2)==0?b.minY:b.maxY,bz=(j&4)==0?b.minZ:b.maxZ;
             if(style==2&&((i&2)!=0||(j&2)!=0))continue;
+            var a=corners[i];var end=corners[j];
             if(style==1){
-                worldLine(mc,ctx,ax,ay,az,ax+(bx-ax)*0.25,ay+(by-ay)*0.25,az+(bz-az)*0.25,color,width);
-                worldLine(mc,ctx,bx,by,bz,bx+(ax-bx)*0.25,by+(ay-by)*0.25,bz+(az-bz)*0.25,color,width);
-            }else worldLine(mc,ctx,ax,ay,az,bx,by,bz,color,width);
+                viewLine(ctx,a,a.lerp(end,0.25f,cornerEnd),color,width);
+                viewLine(ctx,end,end.lerp(a,0.25f,cornerEnd),color,width);
+            }else viewLine(ctx,a,end,color,width);
         }
     }
     public static void render(DrawContext ctx){

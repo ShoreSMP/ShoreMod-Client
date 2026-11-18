@@ -20,6 +20,8 @@ public final class CaptureBudget {
   }
   long period=1_000_000_000L/fps;
   if(protect)period=Math.max(period,Math.min(2_000_000_000L,Math.max(readbackNanos*10,processingNanos*2)));
-  next=Math.max(now-period,next)+period;return true;
+  // A new session or a long pause starts a fresh interval instead of two back-to-back GPU reads.
+  next=next==0 || now-next>=period ? now+period : next+period;
+  return true;
  }
 }

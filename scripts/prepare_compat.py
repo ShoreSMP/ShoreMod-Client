@@ -49,7 +49,7 @@ deps+=f"base {{ archivesName = 'ShoreMod-Fabric-{target}' }}\n"
 if modern:deps+="java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }\ntasks.withType(JavaCompile).configureEach { options.release = 25 }\n"
 deps+='\ntasks.withType(Jar).configureEach { from(rootProject.file("LICENSE")); from(rootProject.file("LICENSE-JCODEC.txt")) }\ntasks.named("test") { failOnNoDiscoveredTests = false }\n'
 (root/'fabric/build.gradle').write_text(deps)
-meta=json.loads((res/'fabric.mod.json').read_text(encoding='utf-8-sig'));meta['version']='1.4.1';meta['depends']['minecraft']=target
+meta=json.loads((res/'fabric.mod.json').read_text(encoding='utf-8-sig'));meta['version']='1.5.0';meta['depends']['minecraft']=target
 meta['depends']['java']='>=25' if modern else '>=21';meta['depends']['fabricloader']='>='+loader;meta['depends']['fabric-api']='>='+api.split('+')[0];meta['depends'].pop('rinku',None)
 meta['custom']={'shoremod:build-target':target}
 (res/'fabric.mod.json').write_text(json.dumps(meta,indent=2))
@@ -142,6 +142,10 @@ import org.spongepowered.asm.mixin.injection.*;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(InGameHud.class)
 public abstract class LegacyCrosshairMixin {
+ @Inject(method="render",at=@At("HEAD"))
+ private void shore$blurBeforeHud(DrawContext ctx,RenderTickCounter tick,CallbackInfo ci){
+  net.shoresmp.fabric.ShoreMotionBlur.render(ctx);
+ }
  @Inject(method="renderCrosshair",at=@At("HEAD"),cancellable=true)
  private void shore$crosshair(DrawContext ctx,RenderTickCounter tick,CallbackInfo ci){
   var client=MinecraftClient.getInstance();var c=ShoreClient.config;
@@ -196,3 +200,7 @@ if target in ['1.21.5','1.21.8']:
  file=src/'net/shoresmp/fabric/ShoreDebug.java'
  code=file.read_text(encoding='utf-8').replace('mc.debugHudEntryList.isF3Enabled()','mc.getDebugHud().shouldShowDebugHud()')
  file.write_text(code,encoding='utf-8')
+
+runpy.run_path(str(root/'scripts/compat_world150.py'),init_globals={'root':root,'target':target,'stage':'prepare'})
+import subprocess
+subprocess.run([sys.executable,str(root/'scripts/compat_debug150.py'),'prepare',target],check=True)

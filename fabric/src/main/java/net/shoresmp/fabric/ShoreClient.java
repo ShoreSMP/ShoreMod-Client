@@ -42,6 +42,8 @@ public final class ShoreClient implements ClientModInitializer {
     public static void openUpdate(){if(latestUpdate!=null&&!latestUpdate.url().isEmpty())net.minecraft.util.Util.getOperatingSystem().open(java.net.URI.create(latestUpdate.url()));}
     private Double originalChatOpacity;
     public static KeyBinding menuKey, clipKey,waypointKey;
+    static KeyBinding watchStart, watchPause, watchReset;
+    static final net.shoresmp.core.Stopwatch stopwatch = new net.shoresmp.core.Stopwatch(System::nanoTime);
     /** Localized name of the key currently bound, e.g. "F8", for hints in the UI. */
     public static String keyName(KeyBinding key){return key==null||key.isUnbound()?"Unbound":key.getBoundKeyLocalizedText().getString();}
     private static final KeyBinding.Category CATEGORY = KeyBinding.Category.create(Identifier.of("shoremod", "controls"));
@@ -49,7 +51,12 @@ public final class ShoreClient implements ClientModInitializer {
         config = Config.load(); recorder = new ClipRecorder();
         var menu = menuKey = key("menu", GLFW.GLFW_KEY_RIGHT_SHIFT);
         var clip = clipKey = key("clip", GLFW.GLFW_KEY_F9);
+        ShoreF3.registerKeys(this::key);
         waypointKey=key("waypoint",GLFW.GLFW_KEY_M);
+        int unbound = InputUtil.UNKNOWN_KEY.getCode();
+        watchStart = key("watch_start", unbound);
+        watchPause = key("watch_pause", unbound);
+        watchReset = key("watch_reset", unbound);
         ShoreTools.zoomKey = key("zoom", GLFW.GLFW_KEY_C);
         ShoreHud.register();
         ShoreTools.register();
@@ -81,17 +88,23 @@ public final class ShoreClient implements ClientModInitializer {
             ShoreTools.joined(client);
         });
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            stopwatch.reset();
             sessionEpoch++;ShoreMotionBlur.clear();ShoreCrystals.reload();
             pendingScreen.set(null);latestUpdate=null;announcedUpdate="";
             backendConfirmed=false;payments.cancel(false); roster.clear(); lastRosterAt = 0;
             // Keep the ring briefly: disconnect screen/transfer reasons may arrive after this event.
         });
-        ClientReceiveMessageEvents.GAME.register((message, overlay) -> recorder.trigger(message.getString(), false));
+        ClientReceiveMessageEvents.GAME.register((message, overlay) -> {
+            if(config.recording && !config.lowOverhead)recorder.trigger(message.getString(), false);
+        });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             var screen=pendingScreen.getAndSet(null);
             if(screen!=null)client.setScreen(screen.get());
+            while (watchStart.wasPressed()) if (config.stopwatch && client.player != null) stopwatch.startStop();
+            while (watchPause.wasPressed()) if (config.stopwatch && client.player != null) stopwatch.pauseResume();
+            while (watchReset.wasPressed()) stopwatch.reset();
             while (menu.wasPressed()) client.setScreen(new ShoreScreen(client.currentScreen));
-            while (clip.wasPressed()) recorder.trigger("Manually saved gameplay", true);
+            while (clip.wasPressed()) recorder.saveManual();
             long now = System.nanoTime();
             if(client.getNetworkHandler()!=null&&now>=nextUpdateCheck&&ClientPlayNetworking.canSend(UpdatePayload.ID)){
                 ClientPlayNetworking.send(new UpdatePayload(ModUpdates.request()));nextUpdateCheck=now+60_000_000_000L;
@@ -110,10 +123,12 @@ public final class ShoreClient implements ClientModInitializer {
         });
         ClientLifecycleEvents.CLIENT_STARTED.register(client -> originalChatOpacity = client.options.getTextBackgroundOpacity().getValue());
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
+            ShoreMenuBackground.clear();
             ShoreMotionBlur.clear();ShoreCrystals.reload();recorder.close();
             ShoreTools.restoreZoomInput(client);
             if (originalChatOpacity != null) client.options.getTextBackgroundOpacity().setValue(originalChatOpacity);
         });
+        ShoreGames.register();
         ShoreCommands.register();
         ShoreSelfTest.register(); // inert unless -Dshoremod.selftest is set
     }

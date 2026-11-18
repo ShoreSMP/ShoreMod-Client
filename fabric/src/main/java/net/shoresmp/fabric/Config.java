@@ -17,6 +17,8 @@ public final class Config {
     public boolean privacy = false, hideChat = true, hideScoreboard = true, hideTab = true, hideDebug = true;
     public volatile boolean antiLeakTextures = false;
     public boolean recording = false, saveEveryDisconnect = false, recordingProtectFps = true;
+    public int clipSeconds = 30, clipJpegQuality = 72;
+    public boolean clipPopup = true;
     public boolean blueDefaultApplied, darkHudDefaultApplied, compactGuiDefaultApplied;
     public int accent = 0x50A7FF, panelOpacity = 90, clipFps = 8, clipWidth = 640, maxClipStorageMb = 1024;
     public double chatOpacity = 0.5;
@@ -32,12 +34,26 @@ public final class Config {
     public int hudSize(String id){Integer v=hudSizes.get(id);return v==null?100:v;}
     public boolean fullbright = false;
     public int fullbrightStrength = 60;
+    public int brightnessMode = 0, brightnessFixed = 100;
+    public boolean timeChanger, weatherChanger, fovChanger, itemPhysics;
+    public int timePreset = 0, timeCustom = 6000;
+    public int weatherMode = 1, weatherIntensity = 100, weatherTint = 0xFFFFFF;
+    public boolean customBaseFov;
+    public int baseFov = 80, bowFov, sprintFov, flyingFov, slownessFov, swiftnessFov;
+    public int dropSpin = 100;
+    public boolean dropSettle = true, dropTumble = true;
     public int hudCustomColor = 0xFFFFFF, crosshairCustomColor = 0xFFFFFF, mentionCustomColor = 0x35DBD2;
     // Optional visual tools. Bounded settings; no server changes.
     public boolean lowOverhead=true, performanceDefaultsApplied=false, hudItemIcons=false;
     public boolean chatHeadHat=true;public int chatHeadSize=8;
     public boolean blockOverlay=false, betterF3=false, guiTweaks=false, guiNoDim=true;
     public boolean coloredHitboxes=false, hitboxPlayersOnly=true, totemTweaks=false, waypoints=false, chatHeads=false;
+    public Map<String,Boolean> debugFields = new HashMap<>();
+    public Map<String,Integer> debugColors = new HashMap<>();
+    public boolean debugAnimate = true, debugFade = true, debugSlide = false, debugShadow = false, debugTwoColumns = false;
+    public int debugAnimMs = 220, debugPanelOpacity = 80, debugRefreshMs = 250;
+    public boolean mobOverlay = false, mobAlways = false;
+    public int mobMode = 0, mobOutlineColor = 0x67D5FF, mobFillColor = 0x64CADF, mobFillStrength = 55, mobRange = 64;
     public boolean debugCoordinates=true, debugTarget=true, debugMemory=true, blockInfo=true;
     public int blockColor=0x50A7FF, blockOpacity=90, outlineWidth=2, hitboxColor=0x50A7FF, hitboxRange=24;
     public int inventoryOpacity=75, heldTotemSize=75, heldTotemOpacity=85, popTotemSize=75, popTotemOpacity=85;
@@ -49,6 +65,7 @@ public final class Config {
     }
     // Visual customization (all optional; no server state changes).
     public boolean motionBlur=false, blurMovingOnly=true, blurAutoProtect=true;
+    public int blurMotionTail = 100;
     public int blurStrength=35, blurSamples=2, blurFps=60, blurMinFps=45, blurMemoryMb=96;
     public boolean customCrystals=false, crystalRainbow=false, crystalBase=true, crystalBeam=true;
     public int crystalColor=0xB56CFF, crystalOpacity=100, crystalSize=100, crystalSpeed=100, crystalBob=100, crystalStyle=0;
@@ -75,6 +92,14 @@ public final class Config {
     // Mod menu
     public boolean zoomEnabled = true, extendedChat = true;
     public boolean tweakRmb = true, tweakLmb = true, tweakShift = true, tweakWheel = true;
+    public boolean menuPalette150, menuImage, menuCategoryColors=true;
+    public int menuSurface=0x102631, menuEdge=0x234653, menuEnabledColor=0x23847C;
+    public int menuImageOpacity=75, menuImageTint=0xFFFFFF, menuImageFit=0, menuCardWidth=190, menuScrollStep=48;
+    public boolean stopwatch, watchMillis, watchBorder, watchShadow=true, watchAutoWidth=true;
+    public int watchStyle=0, watchWidth=64, watchHeight=18, watchBackground=0x102631, watchOpacity=85, watchText=0xFFFFFF, watchEdge=0x50A7FF;
+    public boolean clockTwelveHour, clockSeconds, coordsFacing=true, coordsAxis=true;
+    public int armorReadout, armorLowColor=0xFF5555, armorMidColor=0xFFFF55;
+    public int crosshairOutlineColor=0x000000, crosshairOutlineOpacity=75;
     public int menuScale = 85, menuFontScale = 100, paymentScale = 70;
     // Zoom (Lunar-style options)
     public boolean zoomToggle = false, zoomCinematic = false;
@@ -127,9 +152,34 @@ public final class Config {
         Config result = new Config(); result.save(); return result;
     }
     private void validate() {
+        if (debugFields == null) debugFields = new HashMap<>();
+        if (debugColors == null) debugColors = new HashMap<>();
+        debugFields.values().removeIf(Objects::isNull);
+        debugColors.values().removeIf(Objects::isNull);
+        debugColors.replaceAll((key, color) -> color & 0xFFFFFF);
+        debugAnimMs = Math.clamp(debugAnimMs, 0, 1500);
+        debugPanelOpacity = Math.clamp(debugPanelOpacity, 0, 100);
+        debugRefreshMs = Math.clamp(debugRefreshMs, 100, 2000);
+        mobMode = Math.clamp(mobMode, 0, 1);
+        mobFillStrength = Math.clamp(mobFillStrength, 0, 100);
+        mobRange = Math.clamp(mobRange, 4, 256);
+        mobOutlineColor &= 0xFFFFFF;
+        mobFillColor &= 0xFFFFFF;
         if(!menuDefaults140){panelOpacity=100;menuBackgroundColor=0x07090C;menuShade=45;menuDefaults140=true;}
+        if (!menuPalette150) {
+            if (menuBackgroundColor == 0x07090C) menuBackgroundColor = 0x091C26;
+            menuPalette150 = true;
+        }
+        menuSurface &= 0xFFFFFF; menuEdge &= 0xFFFFFF; menuEnabledColor &= 0xFFFFFF;
+        menuImageTint &= 0xFFFFFF; menuImageOpacity = Math.clamp(menuImageOpacity,0,100); menuImageFit = Math.clamp(menuImageFit,0,2);
+        menuCardWidth = Math.clamp(menuCardWidth,150,260); menuScrollStep = Math.clamp(menuScrollStep,12,96);
+        watchStyle = Math.clamp(watchStyle,0,2); watchWidth = Math.clamp(watchWidth,30,180); watchHeight = Math.clamp(watchHeight,10,48);
+        watchOpacity = Math.clamp(watchOpacity,0,100); watchText &= 0xFFFFFF; watchEdge &= 0xFFFFFF; watchBackground &= 0xFFFFFF;
+        armorReadout = Math.clamp(armorReadout,0,2); armorLowColor &= 0xFFFFFF; armorMidColor &= 0xFFFFFF;
+        crosshairOutlineColor &= 0xFFFFFF; crosshairOutlineOpacity = Math.clamp(crosshairOutlineOpacity,0,100);
         if(!tooltipDefaults140){shulkerMode=1;tooltipDefaults140=true;}
         blurStrength=Math.clamp(blurStrength,0,85);blurSamples=Math.clamp(blurSamples,1,4);
+        blurMotionTail=Math.clamp(blurMotionTail,0,350);
         blurFps=Math.clamp(blurFps,15,120);blurMinFps=Math.clamp(blurMinFps,15,120);blurMemoryMb=Math.clamp(blurMemoryMb,16,256);
         crystalColor&=0xFFFFFF;crystalOpacity=Math.clamp(crystalOpacity,5,100);crystalSize=Math.clamp(crystalSize,25,200);
         crystalSpeed=Math.clamp(crystalSpeed,0,300);crystalBob=Math.clamp(crystalBob,0,200);crystalStyle=Math.clamp(crystalStyle,0,2);
@@ -159,6 +209,7 @@ public final class Config {
         for(var w:savedWaypoints){w.name=w.name.substring(0,Math.min(32,w.name.length()));w.color&=0xFFFFFF;}
         chatHistoryLimit = Math.clamp(chatHistoryLimit,100,20000);
         clipFps = Math.clamp(clipFps, 5, 60); clipWidth = Math.clamp(clipWidth, 320, 1920);
+        clipSeconds = Math.clamp(clipSeconds, 5, 30); clipJpegQuality = Math.clamp(clipJpegQuality, 40, 95);
         panelOpacity = Math.clamp(panelOpacity, 20, 100); maxClipStorageMb = Math.clamp(maxClipStorageMb, 128, 16384);
         chatOpacity = Double.isFinite(chatOpacity) ? Math.clamp(chatOpacity, 0, 1) : 0.5;
         if (punishmentPhrases == null) punishmentPhrases = new ArrayList<>();
@@ -188,6 +239,20 @@ public final class Config {
         zoomLevel = Math.clamp(zoomLevel, 2, 20); durabilityThreshold = Math.clamp(durabilityThreshold, 1, 50);
         autoReconnectDelay = Math.clamp(autoReconnectDelay, 3, 120);
         fullbrightStrength = Math.clamp(fullbrightStrength, 0, 100);
+        brightnessMode = Math.clamp(brightnessMode, 0, 1);
+        brightnessFixed = Math.clamp(brightnessFixed, 0, 1600);
+        timePreset = Math.clamp(timePreset, 0, 4);
+        timeCustom = Math.clamp(timeCustom, 0, 23999);
+        weatherMode = Math.clamp(weatherMode, 0, 3);
+        weatherIntensity = Math.clamp(weatherIntensity, 0, 100);
+        weatherTint &= 0xFFFFFF;
+        baseFov = Math.clamp(baseFov, 30, 110);
+        bowFov = Math.clamp(bowFov, -50, 50);
+        sprintFov = Math.clamp(sprintFov, -50, 50);
+        flyingFov = Math.clamp(flyingFov, -50, 50);
+        slownessFov = Math.clamp(slownessFov, -50, 50);
+        swiftnessFov = Math.clamp(swiftnessFov, -50, 50);
+        dropSpin = Math.clamp(dropSpin, 0, 300);
         hudCustomColor &= 0xFFFFFF; crosshairCustomColor &= 0xFFFFFF; mentionCustomColor &= 0xFFFFFF;
         favorites.removeIf(id -> id == null || id.equals("reach") || id.equals("combo"));
         moduleKeys.remove("reach"); moduleKeys.remove("combo");

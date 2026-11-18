@@ -3,6 +3,9 @@ import json,os,re,subprocess,sys
 from pathlib import Path
 root=Path(__file__).resolve().parents[1];target=sys.argv[1]
 cp=json.loads((root/'fabric/build/compat-classpath.json').read_text());classpath=os.pathsep.join(cp)
+import runpy
+subprocess.run([sys.executable,str(root/'scripts/compat_debug150.py'),'finalize',target],check=True)
+runpy.run_path(str(root/'scripts/compat_world150.py'),init_globals={'root':root,'target':target,'stage':'finalize','classpath':classpath})
 # Resolve crystal selectors from the actual target descriptors.
 renderer='net.minecraft.client.renderer.entity.EndCrystalRenderer' if target.startswith('26.') else 'net.minecraft.client.render.entity.EndCrystalEntityRenderer'
 state='net/minecraft/client/renderer/entity/state/EndCrystalRenderState' if target.startswith('26.') else 'net/minecraft/client/render/entity/state/EndCrystalEntityRenderState'

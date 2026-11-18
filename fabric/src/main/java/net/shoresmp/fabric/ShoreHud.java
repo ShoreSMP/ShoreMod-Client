@@ -13,7 +13,10 @@ import java.util.*;
 
 /** Compact info panel (FPS, ping, position, biome, clock) plus an equipment durability column. */
 public final class ShoreHud {
-    private static final DateTimeFormatter CLOCK=DateTimeFormatter.ofPattern("HH:mm");
+    private static final DateTimeFormatter[] CLOCK = {
+        DateTimeFormatter.ofPattern("HH:mm"), DateTimeFormatter.ofPattern("HH:mm:ss"),
+        DateTimeFormatter.ofPattern("h:mm a", Locale.ROOT), DateTimeFormatter.ofPattern("h:mm:ss a", Locale.ROOT)
+    };
     private static final EquipmentSlot[] SLOTS={EquipmentSlot.HEAD,EquipmentSlot.CHEST,EquipmentSlot.LEGS,EquipmentSlot.FEET,EquipmentSlot.MAINHAND,EquipmentSlot.OFFHAND};
     private static final Identifier UI=Identifier.of("shoremod","ui");
     private ShoreHud(){}
@@ -49,7 +52,7 @@ public final class ShoreHud {
             out.add(new Readout("coords","XYZ: "+player.getBlockX()+", "+player.getBlockY()+", "+player.getBlockZ()));
             var facing=player.getHorizontalFacing();
             String axis=switch(facing){case NORTH->"-Z";case SOUTH->"+Z";case EAST->"+X";case WEST->"-X";default->"";};
-            out.add(new Readout("coords",title(facing.asString())+" ("+axis+")"));
+            if(c.coordsFacing)out.add(new Readout("coords",title(facing.asString())+(c.coordsAxis?" ("+axis+")":"")));
         }
         if(c.hudBiome&&player!=null&&client.world!=null&&!hidePosition)
             out.add(new Readout("biome",client.world.getBiome(player.getBlockPos()).getKey().map(k->title(k.getValue().getPath())).orElse("Unknown")));
@@ -59,7 +62,7 @@ public final class ShoreHud {
             if(c.dayShowTime){long minutes=Math.floorMod(ticks+6000,24000)*1440/24000;value+=String.format(Locale.ROOT,"  %02d:%02d",minutes/60,minutes%60);}
             out.add(new Readout("days",value));
         }
-        if(c.hudClock)out.add(new Readout("clock",LocalTime.now().format(CLOCK)));
+        if(c.hudClock)out.add(new Readout("clock",LocalTime.now().format(CLOCK[(c.clockTwelveHour?2:0)+(c.clockSeconds?1:0)])));
         var target=ShorePvp.target();
         if(c.targetHud&&target!=null)out.add(new Readout("target",target.getName().getString()+"  ❤ "+String.format(Locale.ROOT,"%.1f",target.getHealth()+target.getAbsorptionAmount())+(c.targetDistance?String.format(Locale.ROOT,"  %.1fm",target.distanceTo(player)):"")));
         if(c.potionHud&&player!=null){
@@ -114,6 +117,7 @@ public final class ShoreHud {
                 g.drawText(tr,r.text(),c.hudPadding,(BOX_H-8)/2+1,textColor(),c.hudShadow);
             }));
         }
+        if (c.stopwatch) blocks.add(stopwatchBlock(tr, c, global*c.hudSize("stopwatch")/100f));
         if(c.keystrokes)blocks.add(keystrokes(client,global*c.hudSize("keystrokes")/100f));
         if(c.itemCounter){
             float sc=global*c.hudSize("items")/100f;
@@ -125,8 +129,9 @@ public final class ShoreHud {
                 ItemStack s=client.player.getEquippedStack(slot);
                 if(s.isEmpty()||!s.isDamageable())continue;
                 int max=s.getMaxDamage(),left=max-s.getDamage(),pct=max<=0?100:Math.round(left*100f/max);
-                int color=pct>50?textColor():pct>Math.max(c.durabilityThreshold,20)?0xFFFFFF55:0xFFFF5555;
-                blocks.add(itemRow(tr,s,pct+"%",color,sc));
+                int color=pct>50?textColor():pct>Math.max(c.durabilityThreshold,20)?(0xFF000000|c.armorMidColor):(0xFF000000|c.armorLowColor);
+                String value = switch(c.armorReadout) { case 1 -> Integer.toString(left); case 2 -> left+"/"+max; default -> pct+"%"; };
+                blocks.add(itemRow(tr,s,value,color,sc));
             }
         }
         if(blocks.isEmpty())return;
@@ -162,6 +167,36 @@ public final class ShoreHud {
             colX+=width+gap*2;
         }
     }
+    private static Block stopwatchBlock(net.minecraft.client.font.TextRenderer font, Config c, float scale) {
+        String elapsed = net.shoresmp.core.Stopwatch.display(ShoreClient.stopwatch.milliseconds(), c.watchMillis);
+        String text = c.watchStyle == 1 ? "[ " + elapsed + " ]" : elapsed;
+        int textWidth = font.getWidth(text);
+        int width = c.watchStyle == 0 && !c.watchAutoWidth ? Math.max(c.watchWidth,textWidth + 4) : textWidth + 8;
+        int height = c.watchStyle == 0 ? c.watchHeight : BOX_H;
+        return new Block(width,height,scale,g -> {
+            if (c.watchStyle == 0) {
+                g.fill(0,0,width,height,(Math.round(c.watchOpacity*2.55f)<<24)|c.watchBackground);
+                if (c.watchBorder) {
+                    int edge = 0xFF000000|c.watchEdge;
+                    g.fill(0,0,width,1,edge); g.fill(0,height-1,width,height,edge);
+                    g.fill(0,1,1,height-1,edge); g.fill(width-1,1,width,height-1,edge);
+                }
+            }
+            g.drawText(font,text,(width-textWidth)/2,(height-8)/2,0xFF000000|c.watchText,c.watchShadow);
+        });
+    }
+
+    static void previewStopwatch(ShoreUi ui,float right,float centerY,float maxWidth,float maxHeight) {
+        var c=ShoreClient.config;
+        Block block=stopwatchBlock(ui.mc.textRenderer,c,1);
+        float sc=ui.u*Math.min(Math.min(maxWidth/block.w(),maxHeight/block.h()),1.5f*c.hudSize("stopwatch")/100f);
+        float x=ui.p(right)-block.w()*sc,y=ui.p(centerY)-block.h()*sc/2;
+        var m=ui.ctx.getMatrices();
+        m.pushMatrix();m.translate(x,y);m.scale(sc,sc);
+        block.draw().accept(ui.ctx);
+        m.popMatrix();
+    }
+
     private static Block itemRow(net.minecraft.client.font.TextRenderer tr,ItemStack stack,String label,int color,float sc){
         int iconWidth=ShoreClient.config.hudItemIcons?20:0;
         if(!ShoreClient.config.hudItemIcons)label=stack.getName().getString()+" "+label;
@@ -258,7 +293,7 @@ public final class ShoreHud {
         int t=c.crosshairThickness,len=c.crosshairLength,gap=c.crosshairGap,h=t/2;
         int[][] arms={{cx-h,cy-gap-len,t,len},{cx-h,cy+gap+(t%2==0?0:1),t,len},{cx-gap-len,cy-h,len,t},{cx+gap+(t%2==0?0:1),cy-h,len,t}};
         if(c.crosshairOutline){
-            int outline=(Math.round(alpha*0.75f)<<24);
+            int outline=(Math.round(alpha*c.crosshairOutlineOpacity/100f)<<24)|c.crosshairOutlineColor;
             for(int[] a:arms)ctx.fill(a[0]-1,a[1]-1,a[0]+a[2]+1,a[1]+a[3]+1,outline);
             if(c.crosshairDot)ctx.fill(cx-h-1,cy-h-1,cx-h+t+1,cy-h+t+1,outline);
         }

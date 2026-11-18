@@ -22,7 +22,12 @@
     "GuiOpacityMixin",
     "ChatHeadsBackendMixin",
     "MotionBlurMixin",
-    "CrystalMixin"
+    "VisualTimeMixin", "LocalWeatherMixin", "WeatherTintMixin", "PlayerFovMixin", "DropPoseStateMixin", "DroppedItemMixin",
+    "CrystalMixin",
+    "MobOutlineMixin",
+    "MobStateMixin",
+    "MobRendererMixin",
+    "MobOutlineColorMixin"
   ],
   "injectors": {
     "defaultRequire": 1

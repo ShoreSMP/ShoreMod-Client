@@ -22,7 +22,7 @@ public final class ClipRecorder implements AutoCloseable {
     private final ExecutorService exports = Executors.newSingleThreadExecutor(r -> {var t=new Thread(r,"ShoreMod-export");t.setDaemon(true);t.setPriority(Thread.MIN_PRIORITY);return t;});
     private final AtomicBoolean capturePending = new AtomicBoolean(), exporting = new AtomicBoolean();
     private final AtomicInteger epoch = new AtomicInteger();
-    private long nextFrame, lastTrigger;
+    private long lastTrigger;
     private long captureRequests;
     public long captureRequests(){return captureRequests;}
     private volatile long lastGameplay;
@@ -34,6 +34,9 @@ public final class ClipRecorder implements AutoCloseable {
     // Accessed only by the single encoding worker, reused between frames.
     private BufferedImage scaledBuffer;
     private ImageWriter jpegWriter;
+    private final ByteArrayOutputStream compressed = new ByteArrayOutputStream(64 * 1024);
+    private int[] sourceColumns = new int[0];
+    private int sourceWidth;
     public Path directory() { return MinecraftClient.getInstance().runDirectory.toPath().resolve("shoremod-clips"); }
     public Path lastClip() { return lastClip; }
     public String status() { return ShoreClient.config.lowOverhead ? "Paused by performance mode" : ShoreClient.config.recording ? status : "Recording disabled"; }
@@ -44,22 +47,25 @@ public final class ClipRecorder implements AutoCloseable {
         // Preserve short transfers only for the same account and server address.
         if (!session.equals(recordingSession) || System.nanoTime()-lastGameplay > 10_000_000_000L) clear();
         recordingSession=session;
-        ShoreClient.tell(ShoreClient.config.recording ? "Gameplay clip buffer enabled: last 30 seconds, stored locally. F9 saves; change recording in /shore." : "Gameplay recording is disabled. Change it in /shore.");
+        ShoreClient.tell(ShoreClient.config.recording ? "Gameplay clip buffer enabled: up to "+ShoreClient.config.clipSeconds+" seconds, stored locally. Use the Save clip key to keep a moment." : "Gameplay recording is disabled. Change it in /shore.");
     }
-    public synchronized void clear() { epoch.incrementAndGet(); ring.clear(); nextFrame=0; budget.reset(); }
-    private synchronized void addFrame(int captureEpoch,FrameRing.Frame frame) {
-        if(!closed && captureEpoch==epoch.get()) ring.add(frame);
+    public synchronized void clear() { epoch.incrementAndGet(); ring.clear(); lastTrigger=0; lastGameplay=0; budget.reset(); }
+    private synchronized void addFrame(int captureEpoch,FrameRing.Frame frame,long durationNanos) {
+        if(!closed && captureEpoch==epoch.get()) ring.add(frame,durationNanos);
     }
     /** Called after the entire world and GUI have rendered, on the render thread. */
     public void capture() {
         MinecraftClient client=MinecraftClient.getInstance();
         if(closed || !ShoreClient.config.recording || ShoreClient.config.lowOverhead || client.world==null) return;
-        long now=System.nanoTime(); lastGameplay=now;
+        long now=System.nanoTime();
         budget.observe(now);
         if(client.currentScreen!=null){status="Paused in menus; gameplay capture resumes on close";return;}
+        lastGameplay=now;
         if(ShoreClient.config.recordingProtectFps&&budget.protectingSlowFrames()){status="Paused to protect low FPS";return;}
         if(capturePending.get() || !budget.allow(now,ShoreClient.config.clipFps,(long)client.getWindow().getFramebufferWidth()*client.getWindow().getFramebufferHeight(),ShoreClient.config.recordingProtectFps) || !capturePending.compareAndSet(false,true))return;
         int captureEpoch=epoch.get(); int maxWidth=ShoreClient.config.clipWidth;
+        int quality=ShoreClient.config.clipJpegQuality;
+        long durationNanos=ShoreClient.config.clipSeconds*1_000_000_000L;
         try {
             captureRequests++;
             ScreenshotRecorder.takeScreenshot(client.getFramebuffer(), image -> {
@@ -69,16 +75,26 @@ public final class ClipRecorder implements AutoCloseable {
                         long encodingStarted=System.nanoTime();
                         try(image) {
                             if(captureEpoch!=epoch.get()) return;
-                            int w=Math.min(maxWidth,image.getWidth());
-                            int h=Math.max(2,(int)((double)image.getHeight()*w/image.getWidth()));
+                            int inputWidth=image.getWidth(), inputHeight=image.getHeight();
+                            if(inputWidth<2||inputHeight<2)return;
+                            int w=Math.min(maxWidth,inputWidth);
+                            int h=Math.max(2,(int)((double)inputHeight*w/inputWidth));
                             w=Math.max(2,w/2*2); h=h/2*2;
                             if(scaledBuffer==null||scaledBuffer.getWidth()!=w||scaledBuffer.getHeight()!=h)scaledBuffer=new BufferedImage(w,h,BufferedImage.TYPE_INT_RGB);
                             BufferedImage scaled=scaledBuffer;
                             int[] pixels=((java.awt.image.DataBufferInt)scaled.getRaster().getDataBuffer()).getData();
-                            for(int y=0;y<h;y++) for(int x=0;x<w;x++)
-                                pixels[y*w+x]=image.getColorArgb(x*image.getWidth()/w,y*image.getHeight()/h);
-                            byte[] jpeg=compress(scaled);
-                            addFrame(captureEpoch,new FrameRing.Frame(now,jpeg,w,h));
+                            if(sourceColumns.length!=w||sourceWidth!=inputWidth){
+                                sourceWidth=inputWidth;
+                                sourceColumns=new int[w];
+                                for(int x=0;x<w;x++)sourceColumns[x]=(int)((long)x*inputWidth/w);
+                            }
+                            int index=0;
+                            for(int y=0;y<h;y++){
+                                int sourceY=(int)((long)y*inputHeight/h);
+                                for(int sourceX:sourceColumns)pixels[index++]=image.getColorArgb(sourceX,sourceY);
+                            }
+                            byte[] jpeg=compress(scaled,quality);
+                            addFrame(captureEpoch,new FrameRing.Frame(now,jpeg,w,h),durationNanos);
                             status="Buffer active: "+w+"x"+h+(ShoreClient.config.recordingProtectFps?" (FPS protection)":" at "+ShoreClient.config.clipFps+" FPS");
                         } catch(Exception e) { status="Capture error"; ShoreClient.LOG.warn("Clip frame failed",e); }
                         finally {budget.processed(System.nanoTime()-encodingStarted);capturePending.set(false);}
@@ -88,16 +104,16 @@ public final class ClipRecorder implements AutoCloseable {
             budget.requested(System.nanoTime()-now);
         } catch(RuntimeException e) {capturePending.set(false);ShoreClient.LOG.warn("Framebuffer capture failed",e);}
     }
-    private byte[] compress(BufferedImage image) throws IOException {
+    private byte[] compress(BufferedImage image,int quality) throws IOException {
         if(jpegWriter==null)jpegWriter=ImageIO.getImageWritersByFormatName("jpeg").next();
         var writer=jpegWriter;
-        var bytes=new ByteArrayOutputStream();
-        try(var out=new MemoryCacheImageOutputStream(bytes)) {
+        compressed.reset();
+        try(var out=new MemoryCacheImageOutputStream(compressed)) {
             writer.setOutput(out); var param=writer.getDefaultWriteParam();
-            param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);param.setCompressionQuality(0.72f);
+            param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);param.setCompressionQuality(quality/100f);
             writer.write(null,new IIOImage(image,null,null),param);
         } finally {writer.reset();}
-        return bytes.toByteArray();
+        return compressed.toByteArray();
     }
     public void disconnected(String reason) {
         // Disconnect reasons belong to this client; staff system-chat broadcasts do not.
@@ -105,23 +121,42 @@ public final class ClipRecorder implements AutoCloseable {
             trigger(reason,true);
     }
     public void trigger(String reason,boolean explicit) {
-        if(closed || !ShoreClient.config.recording) return;
+        save(reason,explicit,false);
+    }
+    public void saveManual() {
+        save("Manually saved gameplay",true,true);
+    }
+    private void save(String reason,boolean explicit,boolean manual) {
+        if(closed)return;
+        if(!ShoreClient.config.recording || ShoreClient.config.lowOverhead){
+            if(manual)ShoreClient.tell("Enable Clip Recorder to buffer gameplay.");
+            return;
+        }
         if(!explicit && !PunishmentTarget.matchesChat(reason,ShoreClient.config.punishmentPhrases,
             MinecraftClient.getInstance().getSession().getUsername())) return;
         long now=System.nanoTime();
-        if(lastGameplay==0 || now-lastGameplay>15_000_000_000L
-            || (lastTrigger!=0 && now-lastTrigger<30_000_000_000L) || !exporting.compareAndSet(false,true)) return;
-        lastTrigger=now;
+        if(lastGameplay==0 || now-lastGameplay>15_000_000_000L){
+            if(manual)ShoreClient.tell("No recent gameplay buffered yet.");
+            return;
+        }
+        if(!manual && lastTrigger!=0 && now-lastTrigger<30_000_000_000L)return;
+        if(!exporting.compareAndSet(false,true)){
+            if(manual)ShoreClient.tell("Your previous clip is still saving.");
+            return;
+        }
+        if(!manual)lastTrigger=now;
         var client=MinecraftClient.getInstance();
         String server=client.getCurrentServerEntry()==null?"unknown":client.getCurrentServerEntry().address;
         boolean privacy=ShoreClient.config.privacy;
         int fps=ShoreClient.config.clipFps;
+        int seconds=ShoreClient.config.clipSeconds;
+        boolean popup=ShoreClient.config.clipPopup;
         int storage=ShoreClient.config.maxClipStorageMb;
         String ffmpeg=ShoreClient.config.ffmpegPath;
         String notificationSession=recordingSession;
         try {
         frames.execute(() -> {
-            var snapshot=ring.snapshot(now);
+            var snapshot=ring.snapshot(now,seconds*1_000_000_000L);
             try {
             exports.execute(() -> {
                 try {
@@ -129,15 +164,17 @@ public final class ClipRecorder implements AutoCloseable {
                     Files.createDirectories(directory());
                     String name="shoremod-"+DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS").format(LocalDateTime.now());
                     status="Saving MP4 clip…";
-                    Path clip=exportMp4(directory().resolve(name+".mp4"),snapshot,fps,now,ffmpeg);
-                    double duration=Math.min(30,(now-snapshot.getFirst().nanos())/1_000_000_000.0);
+                    // A delayed trigger should not append seconds of frozen footage after the last frame.
+                    long end=Math.min(now,snapshot.getLast().nanos()+1_000_000_000L/fps);
+                    Path clip=exportMp4(directory().resolve(name+".mp4"),snapshot,fps,end,ffmpeg);
+                    double duration=Math.max(1.0/fps,Math.ceil((end-snapshot.getFirst().nanos())*1e-9*fps)/fps);
                     Files.writeString(directory().resolve(name+".txt"),"ShoreMod gameplay evidence\nTime: "+Instant.now()+"\nReason: "+reason
                         +"\nServer: "+(privacy?"Hidden by privacy settings":server)+"\nRecorded duration: "+String.format(Locale.ROOT,"%.2f",duration)
-                        +" seconds\nVideo only; no microphone or game audio.\n");
+                        +" seconds\nCaptured frames: "+snapshot.size()+"\nOutput frame rate: "+fps+" FPS\nVideo only; no microphone or game audio.\n");
                     lastClip=clip; prune(storage);
                     client.execute(() -> {
-                        ShoreClient.tell("Gameplay clip saved to this computer. Use Show clip to find the recording.");
-                        if(!closed && Objects.equals(notificationSession,recordingSession))
+                        ShoreClient.tell("Gameplay clip saved to shoremod-clips/"+clip.getFileName());
+                        if(popup && !closed && Objects.equals(notificationSession,recordingSession))
                             client.setScreen(new ClipSavedScreen(client.currentScreen,clip,duration));
                     });
                 } catch(Exception e) {ShoreClient.LOG.error("Clip export failed",e);ShoreClient.tellError("Clip could not be saved: "+e.getMessage());}

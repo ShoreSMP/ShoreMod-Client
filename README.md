@@ -2,7 +2,7 @@
 
 Fabric client mod for Minecraft **1.21.5, 1.21.8, 1.21.10, 1.21.11, 26.1, 26.2, and 26.3**.
 
-[Download ShoreMod 1.4.1](https://github.com/ShoreSMP/ShoreMod-Client/releases/download/v1.4.1/ShoreMod-1.4.1.jar) | [All releases](https://github.com/ShoreSMP/ShoreMod-Client/releases)
+[Download ShoreMod 1.5.0](https://github.com/ShoreSMP/ShoreMod-Client/releases/download/v1.5.0/ShoreMod-1.5.0.jar) | [All releases](https://github.com/ShoreSMP/ShoreMod-Client/releases)
 
 ## Install
 
@@ -16,6 +16,10 @@ Install Fabric and the Fabric API matching your Minecraft version. Put the JAR i
 Open settings with **Right Shift** or **/shore**. New visual modules are optional.
 
 ## Features
+
+- Change local sky time, weather, brightness and FOV effects. Adjust dropped-item rotation, the mob overlay and individual F3 readouts.
+- Start, pause and reset a HUD stopwatch. Use a local PNG for the settings background and tune the Shore menu colors.
+- On servers running the updated companion, type `/shoremod giveaway` to host or `/shoremod giveaway <code>` to enter. Use `/shoremod tictactoe` to challenge another ShoreMod player. Money prizes and matched wagers use the server’s in-game economy.
 
 - GPU frame-history motion blur with strength, samples, movement-only mode, FPS protection, capture rate and a GPU memory budget. Off by default.
 - Custom end crystal colors, rainbow/ghost styles, opacity, visual size, animation speed, bobbing, base and beam controls.

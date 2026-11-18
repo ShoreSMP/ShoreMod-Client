@@ -286,6 +286,14 @@ final class ShoreSelfTest {
         step(3,c->{
             shot(c,"visual_modules");
             log(verdict(ShoreMotionBlur.frameCount()>0)+" motion blur retains GPU world history");
+            ShoreMotionBlur.clear();
+            ShoreClient.config.blurMovingOnly=true;
+            ShoreMotionBlur.capture();ShoreMotionBlur.finishFrame();
+            float previousYaw=c.player.getYaw();
+            c.player.setYaw(previousYaw+10);
+            ShoreMotionBlur.capture();ShoreMotionBlur.finishFrame();
+            log(verdict(ShoreMotionBlur.frameCount()==1)+" movement-only blur captures the first turn from an empty history");
+            c.player.setYaw(previousYaw);
             log(verdict(ShoreCrystals.ready())+" custom crystal texture reaches the actual renderer");
             ShoreClient.config.motionBlur=false;ShoreMotionBlur.clear();
         });

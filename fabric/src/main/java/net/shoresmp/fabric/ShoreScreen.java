@@ -25,12 +25,27 @@ import java.util.function.*;
  */
 public final class ShoreScreen extends Screen {
     // ------------------------------------------------------------------ palette
-    private static final int TEXT=0xFFF4F5F7, MUTED=0xFF9BA1AA, FAINT=0xFF60666F;
-    private static final int TOP=0xEB121417, TOP_HOVER=0xF51C1F24;
-    private static final int CARD=0xFF090B0E, CARD_HOVER=0xFF11151B, EDGE=0xFF23272D, EDGE_HOVER=0xFF343941;
-    private static final int CHIP=0xFF1C1F24, CHIP_HOVER=0xFF262A30, BTN=0xFF1E2227, BTN_HOVER=0xFF2A2F35;
-    private static final int ON=0xFF7CC62F, ON_HOVER=0xFF8BD33E, OFF=0xFF1E2227, OFF_HOVER=0xFF272B31;
-    private static final int ROW_HOVER=0xFF1B1E23, INPUT=0xFF0B0D0F, INPUT_EDGE=0xFF2A2E34, DIVIDER=0xFF1E2126, TRACK=0xFF353A41, HEART=0xFFFF5C7A;
+    private static final int TEXT=0xFFF0F8FC, MUTED=0xFFA6C0CD, FAINT=0xFF7E99A6, HEART=0xFFFF789A;
+    private int TOP, TOP_HOVER, CARD, CARD_HOVER, EDGE, EDGE_HOVER, CHIP, CHIP_HOVER, BTN, BTN_HOVER;
+    private int ON, ON_HOVER, OFF, OFF_HOVER, ROW_HOVER, INPUT, INPUT_EDGE, DIVIDER, TRACK;
+    private void updatePalette(Config c) {
+        int surface=0xFF000000|c.menuSurface, edge=0xFF000000|c.menuEdge, enabled=0xFF000000|c.menuEnabledColor;
+        if(CARD==surface && EDGE==edge && ON==enabled)return;
+        CARD=surface; EDGE=edge; ON=enabled;
+        CARD_HOVER=ShoreUi.mix(CARD,EDGE,0.32f); EDGE_HOVER=ShoreUi.mix(EDGE,TEXT,0.24f);
+        TOP=0xF0000000|(CARD&0xFFFFFF); TOP_HOVER=CARD_HOVER;
+        CHIP=ShoreUi.mix(CARD,EDGE,0.48f); CHIP_HOVER=EDGE;
+        BTN=CHIP; BTN_HOVER=EDGE; ON_HOVER=ShoreUi.mix(ON,TEXT,0.16f); OFF=CHIP; OFF_HOVER=EDGE;
+        ROW_HOVER=CARD_HOVER; INPUT=ShoreUi.mix(CARD,0xFF000000,0.32f); INPUT_EDGE=EDGE;
+        DIVIDER=ShoreUi.mix(CARD,EDGE,0.65f); TRACK=ShoreUi.mix(EDGE,TEXT,0.16f);
+    }
+    private static int categoryColor(String category) {
+        return switch(category) {
+            case "HUD" -> 0xFF75C9FA; case "PvP" -> 0xFFFF877D; case "Chat" -> 0xFF68DCC8;
+            case "Inventory" -> 0xFFEEC373; case "Utility" -> 0xFFB6A5FB; case "Clips" -> 0xFFF49BC5;
+            default -> accent();
+        };
+    }
     private static final String[] CATEGORIES={"All","New","HUD","PvP","Chat","Inventory","Utility","Clips"};
     private static final String[] CORNER_NAMES={"Top left","Top right","Bottom left","Bottom right"};
     private static final int[] ACCENTS={0x35DBD2,0x50A7FF,0xAA83FF,0xFF759D,0xFF8A3D,0xF4D35E,0x7CC62F,0xEEEEEE};
@@ -94,7 +109,7 @@ public final class ShoreScreen extends Screen {
     private long lastFrame,resetArmedUntil,caretEpoch;
     private Config.Waypoint deleteWaypoint;private long deleteWaypointUntil;
 
-    public ShoreScreen(Screen parent){super(Text.literal("ShoreMod"));this.parent=parent;defineModules();for(var marker:ShoreClient.config.savedWaypoints)collapsed.add("waypoints/Marker: "+marker.name);collapsed.add("hitboxes/Advanced");collapsed.add("motionblur/Advanced");}
+    public ShoreScreen(Screen parent){super(Text.literal("ShoreMod"));this.parent=parent;defineModules();for(var marker:ShoreClient.config.savedWaypoints)collapsed.add("waypoints/Marker: "+marker.name);collapsed.add("GENERAL/Palette");collapsed.add("betterf3/Field colors");collapsed.add("betterf3/Animation");collapsed.add("hitboxes/Advanced");collapsed.add("motionblur/Advanced");}
 
     private static int accent(){return 0xFF000000|ShoreClient.config.accent;}
     private static boolean light(int c){return ((c>>16&255)*299+(c>>8&255)*587+(c&255)*114)/1000>150;}
@@ -120,6 +135,7 @@ public final class ShoreScreen extends Screen {
             s.slider("Strength","0 is clear; higher values leave longer trails",0,85,1,"%",()->c.blurStrength,v->c.blurStrength=v);
             s.slider("History samples","More samples use more GPU memory",1,4,1,"",()->c.blurSamples,v->c.blurSamples=v);
             s.toggle("Only while moving","Avoid trails when you stand still",()->c.blurMovingOnly,v->c.blurMovingOnly=v);
+            s.slider("Movement tail","How long blur lingers after a turn or movement stops",0,350,5," ms",()->c.blurMotionTail,v->c.blurMotionTail=v);
             s.section("Advanced");
             s.slider("Capture rate","GPU texture copies per second",15,120,1," FPS",()->c.blurFps,v->c.blurFps=v);
             s.toggle("FPS protection","Pause the effect below the FPS threshold",()->c.blurAutoProtect,v->c.blurAutoProtect=v);
@@ -140,6 +156,31 @@ public final class ShoreScreen extends Screen {
             s.toggle("Base plate","",()->c.crystalBase,v->c.crystalBase=v);
             s.toggle("Beam","",()->c.crystalBeam,v->c.crystalBeam=v);
         });
+        mod("stopwatch","Stopwatch","Time runs and fights with a pausable HUD timer.","HUD","clock",true,
+            ()->c.stopwatch,v->{c.stopwatch=v;if(!v)ShoreClient.stopwatch.reset();},s->{
+                s.section("Stopwatch");
+                s.row(WATCH_PREVIEW,"Preview","Current session");
+                s.action("Start or stop","Starting a new run clears the previous time","Start / stop",ShoreClient.stopwatch::startStop).available=()->c.stopwatch;
+                s.action("Pause or resume","Continue from your previous time","Pause / resume",ShoreClient.stopwatch::pauseResume).available=()->c.stopwatch;
+                s.action("Reset","Clear the current time","Clear",ShoreClient.stopwatch::reset);
+                s.toggle("Milliseconds","Display three fractional digits",()->c.watchMillis,v->c.watchMillis=v);
+                s.section("Appearance");
+                s.segment("Display mode","",new String[]{"Background","Brackets","Text"},()->c.watchStyle,v->c.watchStyle=v);
+                s.segment("Background width","Dynamic follows the timer. Fixed fits at least the chosen width.",new String[]{"Dynamic","Fixed"},()->c.watchAutoWidth?0:1,v->c.watchAutoWidth=v==0).available=()->c.watchStyle==0;
+                s.slider("Fixed width","",30,180,1," px",()->c.watchWidth,v->c.watchWidth=v).available=()->c.watchStyle==0&&!c.watchAutoWidth;
+                s.slider("Background height","",10,48,1," px",()->c.watchHeight,v->c.watchHeight=v).available=()->c.watchStyle==0;
+                s.color("Background","",()->c.watchBackground,v->c.watchBackground=v).available=()->c.watchStyle==0;
+                s.slider("Background opacity","",0,100,1,"%",()->c.watchOpacity,v->c.watchOpacity=v).available=()->c.watchStyle==0;
+                s.toggle("Border","",()->c.watchBorder,v->c.watchBorder=v).available=()->c.watchStyle==0;
+                s.color("Border color","",()->c.watchEdge,v->c.watchEdge=v).available=()->c.watchStyle==0&&c.watchBorder;
+                s.color("Timer text","",()->c.watchText,v->c.watchText=v);
+                s.toggle("Text shadow","",()->c.watchShadow,v->c.watchShadow=v);
+                s.slider("Element size","",50,250,5,"%",()->c.hudSize("stopwatch"),v->c.hudSizes.put("stopwatch",v));
+                s.section("Keys");
+                s.keybind("Start / stop","",ShoreClient.watchStart);
+                s.keybind("Pause / resume","",ShoreClient.watchPause);
+                s.keybind("Reset timer","",ShoreClient.watchReset);
+            });
         mod("days","Day Counter","Display the world's day count in your HUD.","HUD","clock",true,()->c.dayCounter,v->c.dayCounter=v,s->{
             s.section("Counter");
             s.field("Label","","Day",c.dayLabel,v->{c.dayLabel=v.substring(0,Math.min(24,v.length()));c.save();});
@@ -159,11 +200,8 @@ public final class ShoreScreen extends Screen {
             s.slider("Line width","Screen pixels",1,4,1," px",()->c.outlineWidth,v->c.outlineWidth=v);
             s.toggle("Block information","Name and coordinates near the crosshair",()->c.blockInfo,v->c.blockInfo=v);
         });
-        mod("betterf3","Better F3","A compact debug panel with the information you choose.","Utility","gauge",true,()->c.betterF3,v->c.betterF3=v,s->{
-            s.toggle("Coordinates","Respects servers with reduced debug info",()->c.debugCoordinates,v->c.debugCoordinates=v);
-            s.toggle("Target block","Block name and coordinates",()->c.debugTarget,v->c.debugTarget=v);
-            s.toggle("Memory","Heap usage",()->c.debugMemory,v->c.debugMemory=v);
-        });
+        mod("betterf3","Custom F3","Choose each debug field and its color.","Utility","gauge",true,()->c.betterF3,v->c.betterF3=v,ShoreF3::settings);
+        mod("moboverlay","Mob Overlay","Outline or tint mob models.","PvP","target",true,()->c.mobOverlay,v->c.mobOverlay=v,ShoreMobOverlay::settings);
         mod("guitweaks","GUI Tweaks","Transparent inventory backgrounds and adjustable Minecraft GUI size.","Inventory","gear",true,()->c.guiTweaks,v->c.guiTweaks=v,s->{
             s.toggle("Clear world background","Remove blur and dimming behind inventory screens",()->c.guiNoDim,v->c.guiNoDim=v);
             s.color("Inventory tint","Color applied only to inventory background textures",()->c.guiTintColor,v->c.guiTintColor=v);
@@ -228,10 +266,26 @@ public final class ShoreScreen extends Screen {
         });
         mod("fps","FPS","Your frames per second.","HUD","gauge",true,()->c.hudFps,v->c.hudFps=v,hudSettings.apply("fps"));
         mod("ping","Ping","Your latency to the server in milliseconds.","HUD","signal",true,()->c.hudPing,v->c.hudPing=v,hudSettings.apply("ping"));
-        mod("coords","Coordinates","Your position and the direction you are facing.","HUD","pin",true,()->c.hudCoords,v->c.hudCoords=v,hudSettings.apply("coords"));
+        mod("coords","Coordinates","Your position and the direction you are facing.","HUD","pin",true,()->c.hudCoords,v->c.hudCoords=v,s->{
+            s.section("Readout");
+            s.toggle("Facing direction","Add a second line for the compass direction",()->c.coordsFacing,v->c.coordsFacing=v);
+            s.toggle("Facing axis","Add the X or Z direction",()->c.coordsAxis,v->c.coordsAxis=v).available=()->c.coordsFacing;
+            hudSettings.apply("coords").accept(s);
+        });
         mod("biome","Biome","The biome you are standing in.","HUD","tree",true,()->c.hudBiome,v->c.hudBiome=v,hudSettings.apply("biome"));
-        mod("clock","Clock","Your local time on screen.","HUD","clock",true,()->c.hudClock,v->c.hudClock=v,hudSettings.apply("clock"));
-        mod("armor","Armor Status","Durability of everything you wear and hold.","HUD","armor",true,()->c.hudArmor,v->c.hudArmor=v,hudSettings.apply("armor"));
+        mod("clock","Clock","Your local time on screen.","HUD","clock",true,()->c.hudClock,v->c.hudClock=v,s->{
+            s.section("Clock");
+            s.segment("Time format","Local time",new String[]{"24 hour","12 hour"},()->c.clockTwelveHour?1:0,v->c.clockTwelveHour=v==1);
+            s.toggle("Show seconds","",()->c.clockSeconds,v->c.clockSeconds=v);
+            hudSettings.apply("clock").accept(s);
+        });
+        mod("armor","Armor Status","Durability of everything you wear and hold.","HUD","armor",true,()->c.hudArmor,v->c.hudArmor=v,s->{
+            s.section("Equipment");
+            s.segment("Durability","",new String[]{"Percent","Remaining","Remaining / total"},()->c.armorReadout,v->c.armorReadout=v);
+            s.color("Worn equipment","Durability at or below 50%",()->c.armorMidColor,v->c.armorMidColor=v);
+            s.color("Low durability","Use for items near breaking",()->c.armorLowColor,v->c.armorLowColor=v);
+            hudSettings.apply("armor").accept(s);
+        });
 
         mod("stacking","Message Stacking","Merge repeated chat messages into one line with a count.","Chat","stack",false,()->c.filterDuplicates,v->c.filterDuplicates=v,s->{
             s.section("Counter");
@@ -300,9 +354,38 @@ public final class ShoreScreen extends Screen {
             });
         });
 
-        mod("fullbright","Fullbright","Brighten caves and nights without changing your saved game brightness.","Utility","gauge",true,()->c.fullbright,v->c.fullbright=v,s->{
+        mod("timechanger","Time Changer","Choose the local sky and lighting while keeping the server clock.","Utility","clock",true,()->c.timeChanger,v->c.timeChanger=v,s->{
+            String[] skyTimes={"Morning","Noon","Sunset","Midnight","Custom"};
+            s.choice("Time of day","Cycle between sky presets and a custom time",()->skyTimes[c.timePreset],()->{c.timePreset=(c.timePreset+1)%skyTimes.length;c.save();});
+            s.slider("Custom time","0 is sunrise, 6000 is noon and 18000 is midnight",0,23999,1," ticks",()->c.timeCustom,v->{c.timeCustom=v;c.timePreset=4;});
+        });
+        mod("weather","Weather Changer","Choose local precipitation, intensity and color.","Utility","cube",true,()->c.weatherChanger,v->c.weatherChanger=v,s->{
+            s.segment("Weather","Default follows the server",new String[]{"Default","Clear","Rain","Thunder"},()->c.weatherMode,v->c.weatherMode=v);
+            s.slider("Intensity","Applies to rain and thunder presets",0,100,1,"%",()->c.weatherIntensity,v->c.weatherIntensity=v);
+            s.color("Rain and snow color","Tints precipitation in wet and snowy biomes",()->c.weatherTint,v->c.weatherTint=v);
+        });
+        mod("fov","FOV Changer","Tune your field of view while moving or drawing a bow.","PvP","zoom",true,()->c.fovChanger,v->c.fovChanger=v,s->{
+            s.toggle("Custom base FOV","Use a ShoreMod base angle",()->c.customBaseFov,v->c.customBaseFov=v);
+            s.slider("Base angle","Applies when Custom base FOV is on",30,110,1," deg",()->c.baseFov,v->c.baseFov=v);
+            s.section("Dynamic FOV");
+            String widen="Positive widens your view, zero keeps the usual effect";
+            String narrow="Positive narrows your view, zero keeps the usual effect";
+            s.slider("Bow zoom",narrow,-50,50,1,"%",()->c.bowFov,v->c.bowFov=v);
+            s.slider("Sprinting",widen,-50,50,1,"%",()->c.sprintFov,v->c.sprintFov=v);
+            s.slider("Flying",widen,-50,50,1,"%",()->c.flyingFov,v->c.flyingFov=v);
+            s.slider("Slowness",narrow,-50,50,1,"%",()->c.slownessFov,v->c.slownessFov=v);
+            s.slider("Swiftness",widen,-50,50,1,"%",()->c.swiftnessFov,v->c.swiftnessFov=v);
+        });
+        mod("itemphysics","Item Physics","Let dropped items tumble through the air and settle on the ground.","Inventory","cube",true,()->c.itemPhysics,v->c.itemPhysics=v,s->{
+            s.slider("Rotation speed","Zero stops the spin",0,300,1,"%",()->c.dropSpin,v->c.dropSpin=v);
+            s.toggle("Airborne tumble","Tilt items as they fall",()->c.dropTumble,v->c.dropTumble=v);
+            s.toggle("Settle on landing","Items rest on the ground and blocks stay upright",()->c.dropSettle,v->c.dropSettle=v);
+        });
+        mod("fullbright","Brightness / Fullbright","Tune brightness independently of your Minecraft options.","Utility","gauge",true,()->c.fullbright,v->c.fullbright=v,s->{
             s.section("Brightness");
+            s.segment("Mode","Boost adds to your game setting. Fixed uses a chosen brightness.",new String[]{"Boost","Fixed"},()->c.brightnessMode,v->c.brightnessMode=v);
             s.slider("Brightness boost","0 keeps normal lighting; 100 gives the strongest boost",0,100,1,"%",()->c.fullbrightStrength,v->c.fullbrightStrength=v);
+            s.slider("Fixed brightness","100% matches Minecraft's brightest regular setting",0,1600,1,"%",()->c.brightnessFixed,v->c.brightnessFixed=v);
         });
         mod("zoom","Zoom","Zoom in and out of objects. Scroll to zoom further.","Utility","zoom",true,()->c.zoomEnabled,v->c.zoomEnabled=v,s->{
             s.section("General");
@@ -353,7 +436,9 @@ public final class ShoreScreen extends Screen {
                 s.slider("Gap","Space between the arms and the center",0,10,1," px",()->c.crosshairGap,v->c.crosshairGap=v);
                 s.slider("Thickness","Width of each arm",1,4,1," px",()->c.crosshairThickness,v->c.crosshairThickness=v);
                 s.toggle("Center dot","A dot in the middle",()->c.crosshairDot,v->c.crosshairDot=v);
-                s.toggle("Outline","A dark edge so it shows on bright blocks",()->c.crosshairOutline,v->c.crosshairOutline=v);
+                s.toggle("Outline","Draw an edge around the shape",()->c.crosshairOutline,v->c.crosshairOutline=v);
+                s.color("Outline color","",()->c.crosshairOutlineColor,v->c.crosshairOutlineColor=v).available=()->c.crosshairOutline;
+                s.slider("Outline opacity","Relative to crosshair opacity",0,100,1,"%",()->c.crosshairOutlineOpacity,v->c.crosshairOutlineOpacity=v).available=()->c.crosshairOutline;
             }
             s.section("Color");
             s.segment("Color","",ShoreHud.CROSSHAIR_NAMES,()->c.crosshairColor,v->c.crosshairColor=v);
@@ -394,7 +479,10 @@ public final class ShoreScreen extends Screen {
             s.toggle("Protect FPS","Adaptive capture rate; pauses on very slow frames and menus",()->c.recordingProtectFps,v->{c.recordingProtectFps=v;ShoreClient.recorder.clear();});
             s.slider("Frame rate","Up to 60 FPS. Above 30 disables FPS protection and uses more GPU/CPU",5,60,1," FPS",()->c.clipFps,v->{c.clipFps=v;if(v>30)c.recordingProtectFps=false;ShoreClient.recorder.clear();});
             s.slider("Resolution","Video width, bounded to 320–1920 pixels",320,1920,20," px",()->c.clipWidth,v->{c.clipWidth=v;ShoreClient.recorder.clear();});
-            s.keybind("Save a clip","Save the last 30 seconds right now",ShoreClient.clipKey);
+            s.slider("Clip length","Maximum gameplay history to keep",5,30,1," s",()->c.clipSeconds,v->c.clipSeconds=v);
+            s.slider("Frame quality","Sharper frames use more memory in the rolling buffer",40,95,1,"%",()->c.clipJpegQuality,v->c.clipJpegQuality=v);
+            s.keybind("Save a clip","Save your buffered gameplay now",ShoreClient.clipKey);
+            s.toggle("Open saved clip menu","Open the clip actions after an export finishes",()->c.clipPopup,v->c.clipPopup=v);
             s.section("Auto-save");
             s.toggle("Save on every disconnect","When off, only punishment disconnects are saved",()->c.saveEveryDisconnect,v->c.saveEveryDisconnect=v);
             s.field("Punishment phrases","Messages containing these save a clip. Separate with commas.","e.g. you have been banned",String.join(", ",c.punishmentPhrases),v->{c.punishmentPhrases=parse(v);c.save();});
@@ -459,7 +547,7 @@ public final class ShoreScreen extends Screen {
     @Override public void tick(){}
 
     void build(){
-        rows.clear();keyClicks.clear();listening=null;pendingSection=null;hexInput=null;
+        rows.clear();keyClicks.clear();switchAnim.clear();settingsLayout=null;listening=null;pendingSection=null;hexInput=null;
         Config c=ShoreClient.config;
         switch(page){
             case MODULE -> {
@@ -483,6 +571,19 @@ public final class ShoreScreen extends Screen {
                 color("Panel color","Dark background of the settings window",()->c.menuBackgroundColor,v->c.menuBackgroundColor=v);
                 slider("World dimming","Darken the world while this menu is open",0,90,1,"%",()->c.menuShade,v->c.menuShade=v);
                 toggle("Two-column settings","Use a denser layout; off gives each setting its own row",()->c.menuTwoColumns,v->c.menuTwoColumns=v);
+                slider("Card width","Preferred width of each module on the grid",150,260,5," px",()->c.menuCardWidth,v->c.menuCardWidth=v);
+                slider("Scroll distance","Distance per mouse wheel step",12,96,1," px",()->c.menuScrollStep,v->c.menuScrollStep=v);
+                toggle("Category icon colors","Give each module category a different color",()->c.menuCategoryColors,v->c.menuCategoryColors=v);
+                section("Palette");
+                color("Card surface","Cards, tabs and controls",()->c.menuSurface,v->c.menuSurface=v);
+                color("Card border","Card outlines and inactive controls",()->c.menuEdge,v->c.menuEdge=v);
+                color("Enabled controls","Active toggles and buttons",()->c.menuEnabledColor,v->c.menuEnabledColor=v);
+                section("Background image");
+                action("Choose a background","Choose a local PNG or drag it onto General settings","Browse",()->chooseImage(true));
+                toggle("Show image","Use the imported background in the ShoreMod menu",()->c.menuImage,v->{c.menuImage=v;if(!v)ShoreMenuBackground.clear();});
+                segment("Image fit","",new String[]{"Cover","Fit","Stretch"},()->c.menuImageFit,v->c.menuImageFit=v);
+                slider("Image opacity","",0,100,1,"%",()->c.menuImageOpacity,v->c.menuImageOpacity=v);
+                color("Image tint","White preserves the image colors",()->c.menuImageTint,v->c.menuImageTint=v);
                 section("HUD appearance");
                 color("HUD box color","Background color of HUD boxes",()->c.hudBackgroundColor,v->c.hudBackgroundColor=v);
                 toggle("HUD borders","Thin colored top and bottom edges",()->c.hudBorder,v->c.hudBorder=v);
@@ -499,6 +600,9 @@ public final class ShoreScreen extends Screen {
                 keybind("Zoom","Hold to zoom in",ShoreTools.zoomKey);
                 keybind("Waypoints","Create or manage your markers",ShoreClient.waypointKey);
                 keybind("Save a clip","Save the last 30 seconds",ShoreClient.clipKey);
+                keybind("Stopwatch start / stop","",ShoreClient.watchStart);
+                keybind("Stopwatch pause / resume","",ShoreClient.watchPause);
+                keybind("Reset stopwatch","",ShoreClient.watchReset);
                 section("Commands");
                 info("/shore","Open this menu",()->"");
                 info("/shore deaths","List your recent death locations",()->"");
@@ -536,15 +640,21 @@ public final class ShoreScreen extends Screen {
     }
     @Override public void onFilesDropped(java.util.List<java.nio.file.Path> paths){
         if(current!=null&&current.id().equals("crosshair")&&!paths.isEmpty())importCrosshair(paths.getFirst());
+        else if(page==Page.GENERAL&&!paths.isEmpty())ShoreMenuBackground.importImage(paths.getFirst());
         else super.onFilesDropped(paths);
     }
-    void chooseCrosshairImage(){
+    void chooseCrosshairImage(){chooseImage(false);}
+    void chooseImage(boolean background){
         Thread t=new Thread(()->{
             try(var stack=org.lwjgl.system.MemoryStack.stackPush()){
-                var filters=stack.mallocPointer(3);filters.put(stack.UTF8("*.png")).put(stack.UTF8("*.jpg")).put(stack.UTF8("*.jpeg"));filters.flip();
-                String chosen=org.lwjgl.util.tinyfd.TinyFileDialogs.tinyfd_openFileDialog("Choose or drop a crosshair image","",filters,"PNG or JPEG images",false);
-                if(chosen!=null)importCrosshair(java.nio.file.Path.of(chosen));
-            }catch(Exception|LinkageError e){ShoreClient.tellError("File picker unavailable. Drop a PNG or JPEG onto the crosshair settings page.");}
+                var filters=stack.mallocPointer(3);filters.put(stack.UTF8("*.png"));
+                if(!background)filters.put(stack.UTF8("*.jpg")).put(stack.UTF8("*.jpeg"));filters.flip();
+                String chosen=org.lwjgl.util.tinyfd.TinyFileDialogs.tinyfd_openFileDialog(background?"Choose menu background":"Choose a crosshair image","",filters,background?"PNG images":"PNG or JPEG images",false);
+                if(chosen!=null){
+                    var file=java.nio.file.Path.of(chosen);
+                    if(background)ShoreMenuBackground.importImage(file);else importCrosshair(file);
+                }
+            }catch(Exception|LinkageError e){ShoreClient.tellError(background?"Drop a PNG onto General settings.":"Drop a PNG or JPEG onto the crosshair settings page.");}
         },"ShoreMod file picker");t.setDaemon(true);t.start();
     }
     private Row listening;
@@ -624,7 +734,7 @@ public final class ShoreScreen extends Screen {
             if(java.lang.reflect.Modifier.isStatic(f.getModifiers())||f.getName().equals("deaths")||f.getName().equals("chatDefaultsVersion")||f.getName().equals("savedWaypoints"))continue;
             try{Object v=f.get(d);f.set(c,v instanceof List<?> l?new ArrayList<>(l):v);}catch(ReflectiveOperationException ignored){}
         }
-        c.save();ShoreClient.recorder.clear();
+        c.save();ShoreClient.recorder.clear();ShoreMenuBackground.clear();ShoreClient.stopwatch.reset();
         if(reloadTextures&&client.world!=null)client.worldRenderer.reload();
         resetArmedUntil=0;build();
     }
@@ -676,7 +786,7 @@ public final class ShoreScreen extends Screen {
         in.cursor=at;
     }
     @Override public boolean mouseScrolled(double x,double y,double horizontal,double vertical){
-        if(maxScroll>0)scrollTarget=Math.clamp(scrollTarget-(float)vertical*48,0,maxScroll);
+        if(maxScroll>0)scrollTarget=Math.clamp(scrollTarget-(float)vertical*ShoreClient.config.menuScrollStep,0,maxScroll);
         return true;
     }
     @Override public boolean keyPressed(KeyInput input){
@@ -727,6 +837,8 @@ public final class ShoreScreen extends Screen {
         hits.clear();tooltip=null;clip=null;
         scroll+=(scrollTarget-scroll)*Math.min(1,dt*14);if(Math.abs(scrollTarget-scroll)<0.3f)scroll=scrollTarget;
 
+        updatePalette(ShoreClient.config);
+        ShoreMenuBackground.draw(ui,ShoreClient.config);
         ui.rect(0,0,ui.W,ui.H,(Math.round(ShoreClient.config.menuShade*2.55f)<<24));
         float cw=Math.min(ui.W-36,800),cx=(ui.W-cw)/2,totalH=Math.min(ui.H-24,420);
         float barY=(ui.H-totalH)/2,tabsY=barY+40,panelY=tabsY+46,panelH=totalH-86;
@@ -811,7 +923,7 @@ public final class ShoreScreen extends Screen {
 
         // cards
         float top=cy+ch+16,viewH=py+ph-10-top,gap=14;
-        int cols=Math.max(2,(int)((iw+gap)/(190+gap)));
+        int cols=Math.max(2,(int)((iw+gap)/(ShoreClient.config.menuCardWidth+gap)));
         float cardW=(iw-8-gap*(cols-1))/cols,cardH=Math.clamp(cardW*0.8f,150,220);
         List<Module> list=visibleModules();
         int rowsN=(list.size()+cols-1)/cols;
@@ -851,7 +963,8 @@ public final class ShoreScreen extends Screen {
         ui.icon(fav?"heart_filled":"heart",hx+(hs-14)/2,hy+(hs-14)/2+0.5f,14,fav?HEART:heartHover?TEXT:MUTED);
         // icon
         float by=y+h-pad-34,area=by-(y+46),is=Math.min(52,area*0.72f);
-        ui.icon(m.icon(),x+(w-is)/2,y+46+(area-is)/2,is,on?0xFFFFFFFF:0xFF5D636B);
+        int iconColor=ShoreClient.config.menuCategoryColors?categoryColor(m.category()):TEXT;
+        ui.icon(m.icon(),x+(w-is)/2,y+46+(area-is)/2,is,on?iconColor:ShoreUi.mix(CARD,iconColor,0.62f));
         // settings + toggle
         float gs=34;
         boolean gearHover=hit(x+pad,by,gs,gs,()->openModule(m));
@@ -864,7 +977,7 @@ public final class ShoreScreen extends Screen {
     }
     private void toggleButton(float x,float y,float w,float h,boolean on,boolean hover){
         ui.round(x,y,w,h,8,on?(hover?ON_HOVER:ON):(hover?OFF_HOVER:OFF));
-        ui.centered(on?"Enabled":"Disabled",true,13.5f,x+w/2,y+(h-13.5f)/2,on?0xFFFFFFFF:MUTED,w-10);
+        ui.centered(on?"Enabled":"Disabled",true,13.5f,x+w/2,y+(h-13.5f)/2,on?(light(ON)?0xFF081923:0xFFFFFFFF):MUTED,w-10);
     }
     private void scrollbar(float x,float top,float viewH,float contentH){
         if(maxScroll<=0)return;
@@ -877,11 +990,16 @@ public final class ShoreScreen extends Screen {
     private static final float FS=12.5f,ROW_H=42;
     private final Set<String> collapsed=new HashSet<>();
     private static final Map<String,String[]> RESET_FIELDS=Map.ofEntries(
+        Map.entry("stopwatch",new String[]{"watchMillis","watchStyle","watchBorder","watchShadow","watchAutoWidth","watchWidth","watchHeight","watchBackground","watchOpacity","watchText","watchEdge"}),
+        Map.entry("coords",new String[]{"coordsFacing","coordsAxis"}),
+        Map.entry("armor",new String[]{"armorReadout","armorLowColor","armorMidColor"}),
+        Map.entry("clock",new String[]{"clockTwelveHour","clockSeconds"}),
         Map.entry("performance",new String[]{"hudItemIcons"}),
         Map.entry("blockoverlay",new String[]{"blockColor","blockOpacity","outlineWidth","blockInfo"}),
-        Map.entry("betterf3",new String[]{"debugCoordinates","debugTarget","debugMemory"}),
+        Map.entry("betterf3",new String[]{"debugCoordinates","debugTarget","debugMemory","debugFields","debugColors","debugAnimate","debugFade","debugSlide","debugShadow","debugTwoColumns","debugAnimMs","debugPanelOpacity","debugRefreshMs"}),
+        Map.entry("moboverlay",new String[]{"mobAlways","mobMode","mobOutlineColor","mobFillColor","mobFillStrength","mobRange"}),
         Map.entry("guitweaks",new String[]{"inventoryOpacity","guiNoDim","guiTintColor"}),
-        Map.entry("motionblur",new String[]{"blurStrength","blurSamples","blurMovingOnly","blurFps","blurAutoProtect","blurMinFps","blurMemoryMb"}),
+        Map.entry("motionblur",new String[]{"blurStrength","blurSamples","blurMovingOnly","blurMotionTail","blurFps","blurAutoProtect","blurMinFps","blurMemoryMb"}),
         Map.entry("crystals",new String[]{"crystalColor","crystalRainbow","crystalStyle","crystalOpacity","crystalSize","crystalSpeed","crystalBob","crystalBase","crystalBeam"}),
         Map.entry("days",new String[]{"dayLabel","dayOneBased","dayOffset","dayShowTime"}),
         Map.entry("hitboxes",new String[]{"hitboxColor","hitboxPlayersOnly","hitboxRange","hitboxLoadedRange","hitboxWidth","hitboxOpacity","hitboxLimit","hitboxStyle","hitboxEyes","hitboxLook","hitboxTargetColor","hitboxDistanceFade","hitboxEyeColor","hitboxLookColor","hitboxTargetRgb"}),
@@ -890,14 +1008,14 @@ public final class ShoreScreen extends Screen {
         Map.entry("cps",new String[]{"cpsRight"}),Map.entry("keystrokes",new String[]{"keystrokesMouse","keystrokesSpace","keystrokesAccent"}),
         Map.entry("items",new String[]{"itemsTotem","itemsPearl","itemsGapple","itemsCrystal","itemsArrow","itemsXp","itemsShowZero","itemsCustom"}),Map.entry("target",new String[]{"targetDistance"}),Map.entry("totempops",new String[]{"totemPopsSelf"}),Map.entry("togglesprint",new String[]{"toggleSneak","toggleSprintHud"}),
         Map.entry("stacking",new String[]{"stackStyle","stackLookback"}),Map.entry("timestamps",new String[]{"timestamps24","timestampSeconds"}),
-        Map.entry("fullbright",new String[]{"fullbrightStrength"}),Map.entry("mentions",new String[]{"mentionSound","highlightWords","mentionColor","mentionCustomColor"}),Map.entry("chat",new String[]{"chatHistoryLimit","chatOpacity","chatHeads","chatHeadSize","chatHeadHat"}),
+        Map.entry("timechanger",new String[]{"timePreset","timeCustom"}),Map.entry("weather",new String[]{"weatherMode","weatherIntensity","weatherTint"}),Map.entry("itemphysics",new String[]{"dropSpin","dropSettle","dropTumble"}),Map.entry("fov",new String[]{"customBaseFov","baseFov","bowFov","sprintFov","flyingFov","slownessFov","swiftnessFov"}),Map.entry("fullbright",new String[]{"fullbrightStrength","brightnessMode","brightnessFixed"}),Map.entry("mentions",new String[]{"mentionSound","highlightWords","mentionColor","mentionCustomColor"}),Map.entry("chat",new String[]{"chatHistoryLimit","chatOpacity","chatHeads","chatHeadSize","chatHeadHat"}),
         Map.entry("mousetweaks",new String[]{"tweakRmb","tweakLmb","tweakShift","tweakWheel"}),Map.entry("shulker",new String[]{"shulkerMode","shulkerScale","shulkerBorderMode","shulkerBgOpacity","shulkerTitle","shulkerEmptySlots"}),
         Map.entry("zoom",new String[]{"zoomToggle","zoomLevel","zoomSensMode","zoomSensitivity","zoomCinematic","zoomScroll","zoomScrollSpeed","zoomSmooth"}),
         Map.entry("durability",new String[]{"durabilityThreshold","durabilitySound","durabilityChat"}),Map.entry("deaths",new String[]{"deathAnnounce"}),
         Map.entry("reconnect",new String[]{"autoReconnect","autoReconnectDelay"}),Map.entry("logos",new String[]{"badgeNametags","badgeTab"}),
-        Map.entry("clips",new String[]{"clipFps","clipWidth","saveEveryDisconnect","punishmentPhrases","maxClipStorageMb"}),
-        Map.entry("crosshair",new String[]{"crosshairLength","crosshairGap","crosshairThickness","crosshairDot","crosshairColor","crosshairOutline","crosshairMode","crosshairImageSize","crosshairOpacity","crosshairTint","crosshairCustomColor"}));
-    private static final Set<String> HUD_IDS=Set.of("fps","ping","coords","biome","clock","armor","cps","togglesprint","keystrokes","target","potions","items");
+        Map.entry("clips",new String[]{"clipFps","clipWidth","clipSeconds","clipJpegQuality","clipPopup","recordingProtectFps","saveEveryDisconnect","punishmentPhrases","maxClipStorageMb"}),
+        Map.entry("crosshair",new String[]{"crosshairLength","crosshairGap","crosshairThickness","crosshairDot","crosshairColor","crosshairOutline","crosshairMode","crosshairImageSize","crosshairOpacity","crosshairTint","crosshairCustomColor","crosshairOutlineColor","crosshairOutlineOpacity"}));
+    private static final Set<String> HUD_IDS=Set.of("stopwatch","days","fps","ping","coords","biome","clock","armor","cps","togglesprint","keystrokes","target","potions","items");
     /** Restores this module's own settings (not its on/off state) to their defaults. */
     private void resetModule(Module m){
         Config c=ShoreClient.config,d=new Config();
@@ -953,39 +1071,59 @@ public final class ShoreScreen extends Screen {
         clip=null;
         scrollbar(px+pw-9,top,viewH,contentH+8);
     }
+    private static final int WATCH_PREVIEW=9;
     private static boolean wide(Row r){return r.kind==FIELD||r.kind==ACCENT;}
     /** Single-line rows that need the full width, e.g. a choice of more than three buttons. */
-    private static boolean full(Row r){return wide(r)||(r.kind==SEGMENT&&r.options.length>3);}
+    private static boolean full(Row r){return r.kind==WATCH_PREVIEW||wide(r)||(r.kind==SEGMENT&&r.options.length>3);}
     private static float height(Row r){return wide(r)?72:ROW_H;}
-    /** Collapsible sections, each a card with settings flowing into two columns. Returns content height. */
-    private float layoutGrid(float x,float y0,float w,boolean draw){
-        float y=y0;int i=0;String key=page==Page.MODULE?current.id():page.name();
-        int accent=accent();
-        while(i<rows.size()){
+    private record SettingsSection(String title,String key,List<Row[]> lines,float cardHeight){}
+    private List<SettingsSection> settingsLayout;
+    private boolean layoutTwoColumns;
+    private List<SettingsSection> settingsSections(){
+        boolean twoColumns=ShoreClient.config.menuTwoColumns;
+        if(settingsLayout!=null&&layoutTwoColumns==twoColumns)return settingsLayout;
+        layoutTwoColumns=twoColumns;
+        String pageKey=page==Page.MODULE?current.id():page.name();
+        var sections=new ArrayList<SettingsSection>();
+        for(int i=0;i<rows.size();){
             String sec=rows.get(i).section!=null?rows.get(i).section:"Settings";
             int j=i+1;while(j<rows.size()&&rows.get(j).section==null)j++;
-            boolean closed=collapsed.contains(key+"/"+sec);
-            if(draw){
-                boolean hh=hit(x,y,w,24,()->{if(!collapsed.remove(key+"/"+sec))collapsed.add(key+"/"+sec);});
+            List<Row[]> lines=new ArrayList<>();Row pending=null;
+            for(int k=i;k<j;k++){
+                Row r=rows.get(k);
+                if(!twoColumns||full(r)){
+                    if(pending!=null){lines.add(new Row[]{pending,null});pending=null;}
+                    lines.add(new Row[]{r});
+                }else if(pending==null)pending=r;
+                else{lines.add(new Row[]{pending,r});pending=null;}
+            }
+            if(pending!=null)lines.add(new Row[]{pending,null});
+            float cardHeight=32;
+            for(Row[] line:lines)cardHeight+=height(line[0]);
+            sections.add(new SettingsSection(sec,pageKey+"/"+sec,lines,cardHeight));
+            i=j;
+        }
+        settingsLayout=sections;
+        return sections;
+    }
+    /** Draw only intersecting cards. Row grouping is stable until the page or column setting changes. */
+    private float layoutGrid(float x,float y0,float w,boolean draw){
+        float y=y0;
+        int accent=accent();
+        for(SettingsSection section:settingsSections()){
+            boolean closed=collapsed.contains(section.key());
+            if(draw&&y+24>=clip[1]&&y<=clip[1]+clip[3]){
+                boolean hh=hit(x,y,w,24,()->{if(!collapsed.remove(section.key()))collapsed.add(section.key());});
                 ui.icon(closed?"chevron":"chevron_down",x+2,y+6,12,accent);
-                ui.text(sec,true,13,x+22,y+(24-13)/2,hh?0xFFFFFFFF:TEXT);
+                ui.text(section.title(),true,13,x+22,y+(24-13)/2,hh?0xFFFFFFFF:TEXT);
             }
             y+=28;
             if(!closed){
-                // Flow rows into lines of two; wide rows (text boxes, colors) take a whole line.
-                List<Row[]> lines=new ArrayList<>();Row pending=null;
-                for(int k=i;k<j;k++){
-                    Row r=rows.get(k);
-                    if(!ShoreClient.config.menuTwoColumns||full(r)){if(pending!=null){lines.add(new Row[]{pending,null});pending=null;}lines.add(new Row[]{r});}
-                    else if(pending==null)pending=r;
-                    else{lines.add(new Row[]{pending,r});pending=null;}
-                }
-                if(pending!=null)lines.add(new Row[]{pending,null});
-                float pad=20,cardH=pad*2-8;for(Row[] l:lines)cardH+=height(l[0]);
-                if(draw){
+                float pad=20,cardH=section.cardHeight();
+                if(draw&&y+cardH>=clip[1]&&y<=clip[1]+clip[3]){
                     ui.outline(x,y,w,cardH,9,EDGE,CARD);
                     float ly=y+pad-4,colGap=36,colW=(w-pad*2-colGap)/2;
-                    for(Row[] l:lines){
+                    for(Row[] l:section.lines()){
                         float lh=height(l[0]);
                         if(l.length==1)drawCompactRow(l[0],x+pad,ly,w-pad*2,lh);
                         else{
@@ -997,7 +1135,6 @@ public final class ShoreScreen extends Screen {
                 }
                 y+=cardH+22;
             }
-            i=j;
         }
         return y-y0;
     }
@@ -1084,6 +1221,7 @@ public final class ShoreScreen extends Screen {
                     ui.centered(label,false,FS,bx+cw/2,cy-FS/2,armed?0xFFFFFFFF:on?onAccent():FAINT,cw-6);
                 }
             }
+            case WATCH_PREVIEW->{cw=w*0.55f;ShoreHud.previewStopwatch(ui,right,cy,cw,h-6);}
             case INFO->{if(!value.isEmpty()){cw=Math.min(w*0.5f,ui.width(value,false,FS));ui.text(value,false,FS,right-cw,cy-FS/2,on?MUTED:FAINT,cw+1);}}
             default->{}
         }

@@ -45,18 +45,23 @@ for p in src.rglob('*.java'):
    s=s.replace('    @Override public void onClose(){','    @Override public void removed(){minecraft.onTextInputFocusChange(this,false);super.removed();}\n    @Override public void onClose(){')
    start=s.index('    void chooseCrosshairImage(){')
    end=s.index('    private Row listening;',start)
-   s=s[:start]+"""    void chooseCrosshairImage(){
+   s=s[:start]+"""    void chooseCrosshairImage(){chooseImage(false);}
+    void chooseImage(boolean background){
         java.awt.EventQueue.invokeLater(()->{
             try{
-                var dialog=new java.awt.FileDialog((java.awt.Frame)null,"Choose a PNG or JPEG crosshair",java.awt.FileDialog.LOAD);
+                var dialog=new java.awt.FileDialog((java.awt.Frame)null,background?"Choose a PNG menu background":"Choose a PNG or JPEG crosshair",java.awt.FileDialog.LOAD);
                 dialog.setFilenameFilter((directory,name)->name.toLowerCase(java.util.Locale.ROOT).matches(".*\\\\.(png|jpe?g)"));
                 dialog.setVisible(true);
                 var chosen=dialog.getFile()==null?null:java.nio.file.Path.of(dialog.getDirectory(),dialog.getFile());dialog.dispose();
-                if(chosen!=null)importCrosshair(chosen);
-            }catch(Exception e){ShoreClient.tellError("Drop a PNG or JPEG onto this crosshair settings page instead.");}
+                if(chosen!=null){if(background)ShoreMenuBackground.importImage(chosen);else importCrosshair(chosen);}
+            }catch(Exception e){ShoreClient.tellError(background?"Drop a PNG onto General settings.":"Drop a PNG or JPEG onto the crosshair settings page.");}
         });
     }
 """+s[end:]
+  if p.name=='ShoreGameScreen.java':
+   s=s.replace('click.button()!=0','click.button()!=org.lwjgl.sdl.SDLMouse.SDL_BUTTON_LEFT')
+   s=s.replace('public void tick(){','public void tick(){minecraft.onTextInputFocusChange(this,focused!=null);')
+   s=s.replace('    @Override public void tick(){','    @Override public void removed(){minecraft.onTextInputFocusChange(this,false);super.removed();}\n    @Override public void tick(){')
   if p.name=='CrosshairEditorScreen.java':
    s=s.replace('int button=click.button();','int button=switch(click.button()){case 1->0;case 3->1;case 2->2;default->click.button();};')
    s=s.replace(' @Override public void onClose(){',' @Override public void tick(){minecraft.onTextInputFocusChange(this,colorFocus);}\n @Override public void removed(){minecraft.onTextInputFocusChange(this,false);super.removed();}\n @Override public void onClose(){minecraft.onTextInputFocusChange(this,false);')
