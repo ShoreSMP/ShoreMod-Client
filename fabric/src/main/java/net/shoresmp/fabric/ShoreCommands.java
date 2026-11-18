@@ -12,7 +12,12 @@ public final class ShoreCommands {
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registry) -> {
             dispatcher.register(ClientCommandManager.literal("shore").executes(ctx -> {
                 ShoreClient.openNextTick(()->new ShoreScreen(null)); return 1;
-            }).then(ClientCommandManager.literal("status").executes(ctx->{ShoreClient.tell(ShoreClient.presenceStatus());ShoreClient.tell("Badges: "+ShoreClient.config.badges+", nametags: "+ShoreClient.config.badgeNametags+", tab: "+ShoreClient.config.badgeTab);ShoreClient.resyncPresence();return 1;})).then(ClientCommandManager.literal("deaths").executes(ctx -> deaths())
+            }).then(ClientCommandManager.literal("giveaway").executes(ctx -> ShoreGames.open(ShoreGames.Kind.GIVEAWAY,""))
+                .then(ClientCommandManager.argument("code",StringArgumentType.word())
+                    .executes(ctx -> ShoreGames.open(ShoreGames.Kind.GIVEAWAY, StringArgumentType.getString(ctx,"code")))))
+              .then(ClientCommandManager.literal("tictactoe").executes(ctx -> ShoreGames.open(ShoreGames.Kind.TICTACTOE,"")))
+              .then(ClientCommandManager.literal("clip").executes(ctx -> { ShoreClient.recorder.saveManual(); return 1; }))
+              .then(ClientCommandManager.literal("status").executes(ctx->{ShoreClient.tell(ShoreClient.presenceStatus());ShoreClient.tell("Badges: "+ShoreClient.config.badges+", nametags: "+ShoreClient.config.badgeNametags+", tab: "+ShoreClient.config.badgeTab);ShoreClient.resyncPresence();return 1;})).then(ClientCommandManager.literal("deaths").executes(ctx -> deaths())
                 .then(ClientCommandManager.literal("clear").executes(ctx -> {
                     ShoreClient.config.deaths.clear(); ShoreClient.config.save(); ShoreClient.tell("Death history cleared."); return 1;
                 }))));

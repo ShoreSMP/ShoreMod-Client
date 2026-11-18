@@ -21,6 +21,25 @@ public final class ShoreSettingsChecks {
         Config c=ShoreClient.config;
         boolean enabled=c.fullbright;int strength=c.fullbrightStrength,size=c.hudSize("fps"),color=c.crosshairCustomColor,mode=c.crosshairColor;
         try{
+            Config legacy = new com.google.gson.Gson().fromJson("""
+                {"menuDefaults140":true,"menuPalette150":true,"panelOpacity":100,"menuBackgroundColor":597030,
+                 "menuSurface":1058353,"hudBackgroundColor":1053207,"hudBgOpacity":85,
+                 "watchBackground":1058353,"watchOpacity":85}
+                """,Config.class);
+            legacy.applyBlackBackgroundDefaults();
+            check(legacy.panelColor()==0xFF000000 && legacy.menuSurface==0
+                && legacy.hudBackgroundColor==0 && legacy.hudBgOpacity==100
+                && legacy.watchBackground==0 && legacy.watchOpacity==100,
+                "previous default menu and HUD fills migrate to opaque black");
+            legacy.menuSurface=0x102631;
+            legacy.applyBlackBackgroundDefaults();
+            check(legacy.menuSurface==0x102631,"reselecting the former color after migration is respected");
+            Config custom=new Config();
+            custom.menuBackgroundColor=0x334455;custom.panelOpacity=38;custom.hudBackgroundColor=0xAABBCC;
+            custom.hudBgOpacity=85;custom.watchBackground=0x102631;custom.watchOpacity=44;
+            custom.applyBlackBackgroundDefaults();
+            check(custom.panelColor()==0x61334455 && custom.hudBackgroundColor==0xAABBCC
+                && custom.hudBgOpacity==85 && custom.watchOpacity==44,"custom colors and opacity survive migration");
             c.fullbright=false;double vanilla=MinecraftClient.getInstance().options.getGamma().getValue();
             var screen=new ShoreScreen(null);screen.showModule("fullbright");
             var numeric=row(screen,"Brightness boost").input;

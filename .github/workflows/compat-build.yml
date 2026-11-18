@@ -1,7 +1,7 @@
 name: Build and release ShoreMod
 on:
   push:
-    branches: ['main', 'update/customization-150']
+    branches: ['main', 'fix/commands-background-151']
     paths: ['fabric/**', 'common/**', 'plugin/**', 'scripts/**', 'build.gradle', 'gradle.properties', 'settings.gradle', 'gradle/**', '.github/workflows/compat-build.yml']
   workflow_dispatch:
 concurrency:
@@ -251,7 +251,7 @@ jobs:
           xvfb-run -a timeout 300 bash gradlew :fabric:runClient -PhudRegression --console=plain >hud-regression.log 2>&1
           result=$?
           tail -80 hud-regression.log
-          test "$result" = 0 && grep -q 'PASS HUD physical boxes' fabric/run/shoremod-selftest.txt && grep -q 'PASS HUD boxes halve' fabric/run/shoremod-selftest.txt && grep -q 'PASS payment dialog geometry' fabric/run/shoremod-selftest.txt && ! grep -qE 'FAIL|ERROR' fabric/run/shoremod-selftest.txt
+          test "$result" = 0 && grep -q 'PASS HUD physical boxes' fabric/run/shoremod-selftest.txt && grep -q 'PASS merged ShoreMod command suggestions' fabric/run/shoremod-selftest.txt && grep -q 'PASS rendered HUD box is pitch black' fabric/run/shoremod-selftest.txt && grep -q 'PASS HUD boxes halve' fabric/run/shoremod-selftest.txt && grep -q 'PASS payment dialog geometry' fabric/run/shoremod-selftest.txt && ! grep -qE 'FAIL|ERROR' fabric/run/shoremod-selftest.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -292,7 +292,7 @@ jobs:
               with zipfile.ZipFile(path) as jar:
                   if 'fabric.mod.json' in jar.namelist():
                       meta=json.loads(jar.read('fabric.mod.json'))
-                      assert meta['version']=='1.5.0',meta
+                      assert meta['version']=='1.5.1',meta
                       versions.add(meta['depends']['minecraft'])
                   else:
                       assert 'plugin.yml' in jar.namelist()
@@ -302,17 +302,17 @@ jobs:
           print('PASS: seven client versions; companion plugin included only in private checkout')
           PY
       - name: Package one universal client
-        run: python3 scripts/package_universal.py jars universal/ShoreMod-1.5.0.jar
+        run: python3 scripts/package_universal.py jars universal/ShoreMod-1.5.1.jar
       - name: Verify real Fabric version selection
-        run: python3 scripts/check_universal.py universal/ShoreMod-1.5.0.jar
+        run: python3 scripts/check_universal.py universal/ShoreMod-1.5.1.jar
       - uses: actions/upload-artifact@v4
         with:
-          name: ShoreMod-1.5.0
+          name: ShoreMod-1.5.1
           if-no-files-found: error
           path: universal/*
       - uses: actions/upload-artifact@v4
         with:
-          name: ShoreMod-1.5.0-All-Jars
+          name: ShoreMod-1.5.1-All-Jars
           path: jars/*.jar
           if-no-files-found: error
 
@@ -322,17 +322,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          if gh release view v1.5.0 >/dev/null 2>&1; then
-            echo "Release v1.5.0 already exists; preserving its published assets."
+          if gh release view v1.5.1 >/dev/null 2>&1; then
+            echo "Release v1.5.1 already exists; preserving its published assets."
             exit 0
           fi
           cat > release-notes.txt <<'NOTES'
-          Configure the local time, weather, brightness, FOV and dropped-item animation. The custom F3 panel, mob overlay, stopwatch and settings appearance have new controls. Import a PNG to use as your menu background.
+          The settings menu and HUD backgrounds now default to opaque black. The previous default palette is migrated automatically. Custom colors remain configurable.
 
-          The multiplayer giveaway wheel and tic-tac-toe use the updated ShoreMod server companion. Both players must agree to the same in-game stake before a wager starts.
+          Fixes overlapping client and server /shoremod commands. Giveaway and tic-tac-toe appear alongside the available server commands. You can also open the games with /shore giveaway or /shore tictactoe. Bare /shoremod clip saves your own buffered clip. Staff can still use /shoremod clip <player> <reason>.
 
-          This release also updates clip recording, movement-triggered motion blur and hitbox rendering.
-
-          Install the Fabric API for your Minecraft version and replace your previous ShoreMod JAR. The universal client supports 1.21.5, 1.21.8, 1.21.10, 1.21.11, 26.1, 26.2 and 26.3.
+          Update the server companion on each backend that hosts games. This universal Fabric JAR supports 1.21.5, 1.21.8, 1.21.10, 1.21.11, 26.1, 26.2, and 26.3.
           NOTES
-          gh release create v1.5.0 universal/ShoreMod-1.5.0.jar universal/ShoreMod-1.5.0.jar.sha256 --target "$GITHUB_SHA" --title "ShoreMod 1.5.0" --notes-file release-notes.txt
+          gh release create v1.5.1 universal/ShoreMod-1.5.1.jar universal/ShoreMod-1.5.1.jar.sha256 --target "$GITHUB_SHA" --title "ShoreMod 1.5.1" --notes-file release-notes.txt

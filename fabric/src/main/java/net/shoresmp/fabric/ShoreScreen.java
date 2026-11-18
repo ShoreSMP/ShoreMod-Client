@@ -33,7 +33,7 @@ public final class ShoreScreen extends Screen {
         if(CARD==surface && EDGE==edge && ON==enabled)return;
         CARD=surface; EDGE=edge; ON=enabled;
         CARD_HOVER=ShoreUi.mix(CARD,EDGE,0.32f); EDGE_HOVER=ShoreUi.mix(EDGE,TEXT,0.24f);
-        TOP=0xF0000000|(CARD&0xFFFFFF); TOP_HOVER=CARD_HOVER;
+        TOP=CARD; TOP_HOVER=CARD_HOVER;
         CHIP=ShoreUi.mix(CARD,EDGE,0.48f); CHIP_HOVER=EDGE;
         BTN=CHIP; BTN_HOVER=EDGE; ON_HOVER=ShoreUi.mix(ON,TEXT,0.16f); OFF=CHIP; OFF_HOVER=EDGE;
         ROW_HOVER=CARD_HOVER; INPUT=ShoreUi.mix(CARD,0xFF000000,0.32f); INPUT_EDGE=EDGE;
@@ -607,6 +607,9 @@ public final class ShoreScreen extends Screen {
                 section("Commands");
                 info("/shore","Open this menu",()->"");
                 info("/shore deaths","List your recent death locations",()->"");
+                info("/shoremod giveaway [code]","Host a giveaway or enter with the host's code",()->"");
+                info("/shoremod tictactoe","Challenge another ShoreMod player",()->"");
+                info("/shoremod clip","Save the gameplay buffered by Clip Recorder",()->"");
             }
             default -> {}
         }
@@ -845,8 +848,7 @@ public final class ShoreScreen extends Screen {
         float barY=(ui.H-totalH)/2,tabsY=barY+40,panelY=tabsY+46,panelH=totalH-86;
         drawTopBar(cx,cw,barY,tabsY);
 
-        int alpha=Math.round(ShoreClient.config.panelOpacity*2.55f);
-        ui.round(cx,panelY,cw,panelH,12,(alpha<<24)|ShoreClient.config.menuBackgroundColor);
+        ui.round(cx,panelY,cw,panelH,12,ShoreClient.config.panelColor());
         if(page==Page.GRID)drawGrid(cx,panelY,cw,panelH,dt);else drawSettings(cx,panelY,cw,panelH,dt);
 
         if(tooltip!=null){

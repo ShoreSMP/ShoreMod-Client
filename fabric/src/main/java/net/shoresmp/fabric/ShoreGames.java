@@ -2,16 +2,14 @@ package net.shoresmp.fabric;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.mojang.brigadier.arguments.StringArgumentType;
 import java.util.ArrayList;
 import java.util.List;
-import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
-import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.client.MinecraftClient;
 
 final class ShoreGames {
+    private static long confirmedEpoch = Long.MIN_VALUE;
     enum Kind { GIVEAWAY, TICTACTOE }
     record Giveaway(String id, String code, String host, String reward, boolean custom, long ends, List<String> names,
                     boolean joined, boolean finished, String winner) {}
@@ -21,34 +19,46 @@ final class ShoreGames {
     static void register() {
         PayloadTypeRegistry.playC2S().register(GamesPayload.ID, GamesPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(GamesPayload.ID, GamesPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(GamesUiPayload.ID, GamesUiPayload.CODEC);
+        ClientPlayNetworking.registerGlobalReceiver(GamesUiPayload.ID, (packet, context) -> {
+            var mc = context.client();
+            mc.execute(() -> {
+                try {
+                    var reply = JsonParser.parseString(packet.json()).getAsJsonObject();
+                    confirmedEpoch = ShoreClient.sessionEpoch;
+                    ShoreCommandRouting.receiveServerAction(reply);
+                }
+                catch (RuntimeException e) { ShoreClient.LOG.debug("Ignored malformed game command reply", e); }
+            });
+        });
         ClientPlayNetworking.registerGlobalReceiver(GamesPayload.ID, (packet, context) -> {
             var mc = context.client();
             mc.execute(() -> {
                 if (!(mc.currentScreen instanceof ShoreGameScreen screen)) return;
                 try {
                     screen.receive(JsonParser.parseString(packet.json()).getAsJsonObject());
+                    confirmedEpoch = ShoreClient.sessionEpoch;
                 } catch (RuntimeException e) {
                     screen.error("The server sent an unreadable game update. Refresh to try again.");
                 }
             });
         });
-        ClientCommandRegistrationCallback.EVENT.register((dispatcher, registry) ->
-            dispatcher.register(ClientCommandManager.literal("shoremod")
-                .then(ClientCommandManager.literal("giveaway")
-                    .executes(ctx -> open(Kind.GIVEAWAY, ""))
-                    .then(ClientCommandManager.argument("code", StringArgumentType.word())
-                        .executes(ctx -> open(Kind.GIVEAWAY, StringArgumentType.getString(ctx, "code")))))
-                .then(ClientCommandManager.literal("tictactoe").executes(ctx -> open(Kind.TICTACTOE, "")))));
+        ShoreCommandRouting.register();
     }
 
-    private static int open(Kind kind, String code) {
+    static int open(Kind kind, String code) {
         if (MinecraftClient.getInstance().getNetworkHandler() == null) return 0;
         ShoreClient.openNextTick(() -> new ShoreGameScreen(kind, code));
         return 1;
     }
 
+    static boolean available() {
+        return MinecraftClient.getInstance().getNetworkHandler() != null
+            && (confirmedEpoch == ShoreClient.sessionEpoch || ClientPlayNetworking.canSend(GamesPayload.ID));
+    }
+
     static boolean send(JsonObject request) {
-        if (MinecraftClient.getInstance().getNetworkHandler() == null || !ClientPlayNetworking.canSend(GamesPayload.ID)) return false;
+        if (MinecraftClient.getInstance().getNetworkHandler() == null || !(available() || ShoreClient.hasCompanion())) return false;
         ClientPlayNetworking.send(new GamesPayload(request.toString()));
         return true;
     }

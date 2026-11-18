@@ -71,6 +71,8 @@ for p in src.rglob('*.java'):
    s=s.replace('if(button==0)leftClicks.addLast(now);else if(button==1)rightClicks.addLast(now);','if(button==1)leftClicks.addLast(now);else if(button==3)rightClicks.addLast(now);')
  if p.name=='BrightnessOptionsMixin.java':
   s=s.replace('method="write"','method="save"')
+ if p.name=='ShoreCommandTreeMixin.java':
+  s=s.replace('method="onCommandTree"','method="handleCommands"')
  if p.name=='ChatHudMixin.java':
   s=s.replace('Lnet/minecraft/client/multiplayer/chat/GuiMessageTag;)V','Lnet/minecraft/client/multiplayer/chat/GuiMessageSource;Lnet/minecraft/client/multiplayer/chat/GuiMessageTag;)V')
   s=s.replace('net.minecraft.client.multiplayer.chat.GuiMessageTag indicator,CallbackInfo ci','net.minecraft.client.multiplayer.chat.GuiMessageSource source,net.minecraft.client.multiplayer.chat.GuiMessageTag indicator,CallbackInfo ci')

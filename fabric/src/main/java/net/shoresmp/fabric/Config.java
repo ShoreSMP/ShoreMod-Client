@@ -20,7 +20,7 @@ public final class Config {
     public int clipSeconds = 30, clipJpegQuality = 72;
     public boolean clipPopup = true;
     public boolean blueDefaultApplied, darkHudDefaultApplied, compactGuiDefaultApplied;
-    public int accent = 0x50A7FF, panelOpacity = 90, clipFps = 8, clipWidth = 640, maxClipStorageMb = 1024;
+    public int accent = 0x50A7FF, panelOpacity = 100, clipFps = 8, clipWidth = 640, maxClipStorageMb = 1024;
     public double chatOpacity = 0.5;
     public String ffmpegPath = "";
     public List<String> punishmentPhrases = new ArrayList<>(List.of("blacklisted modifications", "bug abusing", "temporarily banned", "permanently banned", "you are banned", "you have been banned", "unfair advantage", "cheating", "exploiting"));
@@ -76,9 +76,9 @@ public final class Config {
     public boolean hitboxEyes=false, hitboxLook=false, hitboxTargetColor=true, hitboxDistanceFade=false;
     public boolean hitboxLoadedRange=true;
     public int hitboxTargetRgb=0xFF5555;
-    public int guiTintColor=0xFFFFFF, menuBackgroundColor=0x0D0F12, hudBackgroundColor=0x101217, hudBorderColor=0x50A7FF;
+    public int guiTintColor=0xFFFFFF, menuBackgroundColor=0x000000, hudBackgroundColor=0x000000, hudBorderColor=0x50A7FF;
     public boolean hudBorder=false,menuTwoColumns=false,menuDefaults140=false;
-    public int hudPadding=5, hudGap=2, hudMargin=4, menuShade=33;
+    public int hudPadding=5, hudGap=2, hudMargin=4, menuShade=45;
     public boolean waypointDistances=true, waypointCoordinatesShown=false, waypointBackground=true, waypointOffscreen=true;
     public boolean waypointCompass=true, waypointAutoDeath=false, waypointOnlyCurrentServer=true;
     public int waypointOpacity=75, waypointMaxVisible=16;
@@ -92,11 +92,11 @@ public final class Config {
     // Mod menu
     public boolean zoomEnabled = true, extendedChat = true;
     public boolean tweakRmb = true, tweakLmb = true, tweakShift = true, tweakWheel = true;
-    public boolean menuPalette150, menuImage, menuCategoryColors=true;
-    public int menuSurface=0x102631, menuEdge=0x234653, menuEnabledColor=0x23847C;
+    public boolean blackBackgrounds151, menuImage, menuCategoryColors=true;
+    public int menuSurface=0x000000, menuEdge=0x323232, menuEnabledColor=0x23847C;
     public int menuImageOpacity=75, menuImageTint=0xFFFFFF, menuImageFit=0, menuCardWidth=190, menuScrollStep=48;
     public boolean stopwatch, watchMillis, watchBorder, watchShadow=true, watchAutoWidth=true;
-    public int watchStyle=0, watchWidth=64, watchHeight=18, watchBackground=0x102631, watchOpacity=85, watchText=0xFFFFFF, watchEdge=0x50A7FF;
+    public int watchStyle=0, watchWidth=64, watchHeight=18, watchBackground=0x000000, watchOpacity=100, watchText=0xFFFFFF, watchEdge=0x50A7FF;
     public boolean clockTwelveHour, clockSeconds, coordsFacing=true, coordsAxis=true;
     public int armorReadout, armorLowColor=0xFF5555, armorMidColor=0xFFFF55;
     public int crosshairOutlineColor=0x000000, crosshairOutlineOpacity=75;
@@ -111,7 +111,7 @@ public final class Config {
     // More options
     public boolean shulkerColorBorder = true, hudShadow = true, timestamps24 = true, timestampSeconds = false;
     public boolean durabilitySound = true, durabilityChat = false, deathAnnounce = true;
-    public int shulkerMode = 0, hudBgOpacity = 85, hudTextColor = 0, stackStyle = 0;
+    public int shulkerMode = 0, hudBgOpacity = 100, hudTextColor = 0, stackStyle = 0;
     public int stackLookback = 8, mentionColor = 0;
     // PvP
     public boolean targetHud = false, potionHud = false, keystrokes = false, itemCounter = false;
@@ -145,7 +145,9 @@ public final class Config {
                         // Mentions now highlight the whole line; switch them on for existing installs once.
                         result.mentionHighlight=true; result.chatDefaultsVersion=2; result.save();
                     }
-                    result.validate(); return result;
+                    if (!result.blackBackgrounds151) result.save();
+                    else result.validate();
+                    return result;
                 }
             }
         } catch (IOException | RuntimeException e) { ShoreClient.LOG.warn("Could not read ShoreMod config; using defaults", e); }
@@ -165,10 +167,10 @@ public final class Config {
         mobRange = Math.clamp(mobRange, 4, 256);
         mobOutlineColor &= 0xFFFFFF;
         mobFillColor &= 0xFFFFFF;
-        if(!menuDefaults140){panelOpacity=100;menuBackgroundColor=0x07090C;menuShade=45;menuDefaults140=true;}
-        if (!menuPalette150) {
-            if (menuBackgroundColor == 0x07090C) menuBackgroundColor = 0x091C26;
-            menuPalette150 = true;
+        if (!menuDefaults140) {
+            if (panelOpacity == 90) panelOpacity = 100;
+            if (menuShade == 33) menuShade = 45;
+            menuDefaults140 = true;
         }
         menuSurface &= 0xFFFFFF; menuEdge &= 0xFFFFFF; menuEnabledColor &= 0xFFFFFF;
         menuImageTint &= 0xFFFFFF; menuImageOpacity = Math.clamp(menuImageOpacity,0,100); menuImageFit = Math.clamp(menuImageFit,0,2);
@@ -193,6 +195,7 @@ public final class Config {
 
         if(!blueDefaultApplied){if(accent==0x35DBD2)accent=0x50A7FF;blueDefaultApplied=true;}
         if(!darkHudDefaultApplied){if(hudBgOpacity==50)hudBgOpacity=85;darkHudDefaultApplied=true;}
+        applyBlackBackgroundDefaults();
         if(!compactGuiDefaultApplied){if(menuScale==100)menuScale=85;compactGuiDefaultApplied=true;}
         if(!performanceDefaultsApplied){recording=false;lowOverhead=true;performanceDefaultsApplied=true;}
         chatHeadSize=Math.clamp(chatHeadSize,4,8);
@@ -268,6 +271,22 @@ public final class Config {
             Files.move(temp, PATH, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) { ShoreClient.LOG.error("Could not save ShoreMod settings", e); }
     }
-    public int panelColor() { return ((int)(panelOpacity * 2.55) << 24) | menuBackgroundColor; }
+    void applyBlackBackgroundDefaults() {
+        if (blackBackgrounds151) return;
+        if (menuBackgroundColor == 0x091C26 || menuBackgroundColor == 0x07090C || menuBackgroundColor == 0x0D0F12)
+            menuBackgroundColor = 0;
+        if (menuSurface == 0x102631) menuSurface = 0;
+        if (menuEdge == 0x234653) menuEdge = 0x323232;
+        if (hudBackgroundColor == 0x101217) {
+            hudBackgroundColor = 0;
+            if (hudBgOpacity == 85) hudBgOpacity = 100;
+        }
+        if (watchBackground == 0x102631) {
+            watchBackground = 0;
+            if (watchOpacity == 85) watchOpacity = 100;
+        }
+        blackBackgrounds151 = true;
+    }
+    public int panelColor() { return (Math.round(panelOpacity * 255 / 100f) << 24) | menuBackgroundColor; }
 }
 

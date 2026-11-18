@@ -31,7 +31,7 @@ final class ShoreGameScreen extends Screen {
     private long requestedAt, spinStartedAt, nextRefreshAt;
     private boolean opened, home, unavailable, customReward, changingGiveaway;
     private float x, y, w, mx, my;
-    private int accent, surface;
+    private int accent, surface, edge;
 
     ShoreGameScreen(ShoreGames.Kind kind, String initialCode) {
         super(Text.literal(kind == ShoreGames.Kind.GIVEAWAY ? "Giveaway" : "Tic-tac-toe"));
@@ -60,6 +60,11 @@ final class ShoreGameScreen extends Screen {
         submit(request);
     }
 
+    private void retryOpen() {
+        if (giveaway == null && !initialCode.isEmpty()) join(initialCode);
+        else refresh(false);
+    }
+
     private void submit(JsonObject request) {
         if (requestedAt != 0) return;
         errorText = "";
@@ -67,7 +72,7 @@ final class ShoreGameScreen extends Screen {
         hits.clear();
         if (!ShoreGames.send(request)) {
             unavailable = true;
-            error("This server needs the ShoreMod games plugin.");
+            error("Refresh after joining. This backend needs the updated ShoreMod plugin.");
             return;
         }
         unavailable = false;
@@ -114,8 +119,9 @@ final class ShoreGameScreen extends Screen {
 
     @Override public void tick(){
         long now = System.nanoTime();
+        if (unavailable && giveaway == null && match == null && (ShoreGames.available() || ShoreClient.hasCompanion())) retryOpen();
         if (requestedAt != 0 && now-requestedAt >= 7_000_000_000L)
-            error("No reply yet. Refresh to check the server.");
+            error("No game reply. Check this backend's ShoreMod plugin, then refresh.");
         if (giveaway != null && !giveaway.finished() && requestedAt == 0 && now >= nextRefreshAt) {
             nextRefreshAt = now+4_000_000_000L;
             var request = ShoreGames.request("give.open");
@@ -134,7 +140,8 @@ final class ShoreGameScreen extends Screen {
         var config = ShoreClient.config;
         accent = 0xFF000000 | config.accent;
         int panel = config.panelColor();
-        surface = ShoreUi.mix(0xFF000000 | config.menuBackgroundColor, accent, 0.14f);
+        surface = 0xFF000000 | config.menuSurface;
+        edge = 0xFF000000 | config.menuEdge;
         w = Math.min(438, ui.W-24);
         x = (ui.W-w)/2; y = (ui.H-334)/2;
         ShoreMenuBackground.draw(ui,config);
@@ -144,7 +151,7 @@ final class ShoreGameScreen extends Screen {
         ui.icon("@logo", x+23, y+21, 24, WHITE);
         ui.text(getTitle().getString(), true, 17, x+64, y+23, WHITE, w-120);
         button("Close", x+w-73, y+20, 55, 26, this::close, false);
-        ui.hline(x+18, y+59, w-36, surface);
+        ui.hline(x+18, y+59, w-36, edge);
         if (home) {
             if (kind == ShoreGames.Kind.GIVEAWAY) giveawayForm(); else matchForm();
         } else if (giveaway != null) giveawayState();
@@ -152,7 +159,7 @@ final class ShoreGameScreen extends Screen {
         else ui.centered(unavailable ? "Games unavailable" : "Opening game", true, 16, x+w/2, y+148, WHITE, w-40);
         if (!errorText.isEmpty()) {
             ui.text(errorText, false, 11, x+18, y+295, ERROR, w-36);
-            action("Refresh", x+w-83, y+309, 65, 19, () -> refresh(false), false);
+            action("Refresh", x+w-83, y+309, 65, 19, this::retryOpen, false);
         } else if (requestedAt != 0) ui.text("Waiting for the server...", false, 11, x+18, y+306, MUTED);
         ui.end();
     }
@@ -267,7 +274,7 @@ final class ShoreGameScreen extends Screen {
             boolean enabled = myTurn && mark=='.' && requestedAt==0;
             var hit = new Hit(px, py, cell, cell, () -> move(number));
             int fill = enabled && hit.contains(mx, my) ? ShoreUi.mix(surface, accent, 0.28f) : surface;
-            ui.round(px, py, cell, cell, 7, fill);
+            ui.outline(px, py, cell, cell, 7, edge, fill);
             if (mark != '.') ui.centered(String.valueOf(mark), true, 23, px+cell/2, py+15, mark=='X' ? accent : WHITE, cell-5);
             if (enabled) hits.add(hit);
         }
@@ -323,7 +330,8 @@ final class ShoreGameScreen extends Screen {
             if (hit.contains(mx,my)) fill = ShoreUi.mix(fill, WHITE, 0.14f);
             hits.add(hit);
         }
-        ui.round(px, py, width, height, 6, fill);
+        if (primary) ui.round(px, py, width, height, 6, fill);
+        else ui.outline(px, py, width, height, 6, edge, fill);
         int brightness = (fill>>16&255)*299 + (fill>>8&255)*587 + (fill&255)*114;
         ui.centered(label, true, 12, px+width/2, py+(height-12)/2, brightness>145000 ? 0xFF08121E : WHITE, width-8);
     }

@@ -33,6 +33,7 @@ public final class ShoreClient implements ClientModInitializer {
     private static boolean backendConfirmed;
     public static void resyncPresence(){nextHello=0;}
     public static String presenceStatus(){return lastRosterAt!=0?roster.users().size()+" mod users synced":backendConfirmed?"Server confirmed; waiting for roster":"Waiting for server handshake";}
+    static boolean hasCompanion(){return backendConfirmed;}
     private static long nextUpdateCheck;
     public static ModUpdates.Notice latestUpdate;
     private static String announcedUpdate="";
@@ -88,6 +89,7 @@ public final class ShoreClient implements ClientModInitializer {
             ShoreTools.joined(client);
         });
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            ShoreCommandRouting.clear();
             stopwatch.reset();
             sessionEpoch++;ShoreMotionBlur.clear();ShoreCrystals.reload();
             pendingScreen.set(null);latestUpdate=null;announcedUpdate="";

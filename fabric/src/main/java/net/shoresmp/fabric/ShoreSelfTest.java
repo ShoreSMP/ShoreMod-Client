@@ -135,6 +135,8 @@ final class ShoreSelfTest {
         invoke(c,"onCursorPos",new Class<?>[]{long.class,double.class,double.class},window.getHandle(),gx*window.getWidth()/window.getScaledWidth(),gy*window.getHeight()/window.getScaledHeight());
     }
     private static volatile int[] measuredHud;
+    private static final int HUD_GEOMETRY_COLOR=0xC13579;
+    private static volatile boolean hudColorSampled;
     private static int[] hudGuiOne,hudGuiThree;
     private static float paymentUnit;
     private static void measureHud(MinecraftClient c,String name){
@@ -145,7 +147,7 @@ final class ShoreSelfTest {
                 for(int base:new int[]{0,Math.max(0,image.getHeight()-120)}){
                     int minX=image.getWidth(),minY=image.getHeight(),maxX=-1,maxY=-1,count=0;
                     for(int py=base;py<Math.min(image.getHeight(),base+120);py++)for(int px=0;px<Math.min(220,image.getWidth());px++){
-                        if((image.getColorArgb(px,py)&0xFFFFFF)==0x101217){count++;minX=Math.min(minX,px);maxX=Math.max(maxX,px);minY=Math.min(minY,py);maxY=Math.max(maxY,py);}
+                        if((image.getColorArgb(px,py)&0xFFFFFF)==HUD_GEOMETRY_COLOR){count++;minX=Math.min(minX,px);maxX=Math.max(maxX,px);minY=Math.min(minY,py);maxY=Math.max(maxY,py);}
                     }
                     if(count>bestCount){bestCount=count;best=new int[]{minX,minY,maxX-minX+1,maxY-minY+1};}
                 }
@@ -192,8 +194,58 @@ final class ShoreSelfTest {
             log(verdict(ShoreClient.config.menuScale==100&&row.input.text.equals("100"))+" canceled size preserves saved value");
         }catch(Exception e){throw new IllegalStateException(e);}
     }
+    private static void planCommandRouting(){
+        var received=new java.util.concurrent.CopyOnWriteArrayList<String>();
+        step(1,c->{
+            var server=c.getServer();
+            var playerId=c.player.getUuid();
+            server.execute(()->{
+                var commands=server.getCommandManager();
+                var root=net.minecraft.server.command.CommandManager.literal("shoremod")
+                    .executes(context->{received.add("");return 1;});
+                var args=net.minecraft.server.command.CommandManager.argument("pluginArgs",com.mojang.brigadier.arguments.StringArgumentType.greedyString())
+                    .suggests((context,builder)->{
+                        for(String value:List.of("help","status","users","reload","clip")){
+                            if(value.startsWith(builder.getRemaining()))builder.suggest(value);
+                        }
+                        return builder.buildFuture();
+                    })
+                    .executes(context->{received.add(com.mojang.brigadier.arguments.StringArgumentType.getString(context,"pluginArgs"));return 1;});
+                commands.getDispatcher().register(root.then(args));
+                commands.sendCommandTree(server.getPlayerManager().getPlayer(playerId));
+            });
+        });
+        await(c->{
+            var root=c.getNetworkHandler().getCommandDispatcher().getRoot().getChild("shoremod");
+            return root!=null && root.getChild("pluginArgs")!=null;
+        },2);
+        var suggestions=new java.util.concurrent.atomic.AtomicReference<java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions>>();
+        step(1,c->{
+            var net=c.getNetworkHandler();
+            var tree=net.getCommandDispatcher();
+            suggestions.set(tree.getCompletionSuggestions(tree.parse("shoremod ",net.getCommandSource())));
+        });
+        await(c->suggestions.get()!=null&&suggestions.get().isDone(),1);
+        step(0,c->{
+            var list=suggestions.get().join().getList().stream().map(s->s.getText()).toList();
+            log(verdict(list.containsAll(List.of("giveaway","tictactoe","help","status","users","reload","clip")))+" merged ShoreMod command suggestions "+list);
+        });
+        for(String args:List.of("help","status","users","clip TestPlayer match ended")){
+            step(2,c->c.getNetworkHandler().sendChatCommand("shoremod "+args));
+        }
+        step(9,c->log(verdict(received.equals(List.of("help","status","users","clip TestPlayer match ended")))+" server receives each staff command exactly once "+received));
+        for(String[] example:List.of(new String[]{"shoremod giveaway","Giveaway"},new String[]{"shoremod giveaway SHORE","Giveaway"},new String[]{"shoremod tictactoe","Tic-tac-toe"},new String[]{"shore giveaway","Giveaway"})){
+            step(1,c->c.getNetworkHandler().sendChatCommand(example[0]));
+            step(4,c->{
+                log(verdict(c.currentScreen instanceof ShoreGameScreen && c.currentScreen.getTitle().getString().equals(example[1]))+" local menu opens for /"+example[0]);
+                c.setScreen(null);
+            });
+        }
+        step(2,c->log(verdict(received.size()==4)+" local games do not send duplicate server commands"));
+    }
     private static void planHud(){
         enterWorld();
+        planCommandRouting();
         float[] noonAngle = new float[1];
         step(2,c->{
             var cfg=ShoreClient.config;
@@ -230,10 +282,19 @@ final class ShoreSelfTest {
         step(2,c->{
             var cfg=ShoreClient.config;cfg.hudClock=true;cfg.hudFps=cfg.hudPing=cfg.hudCoords=cfg.hudBiome=cfg.hudArmor=false;
             cfg.keystrokes=cfg.itemCounter=cfg.potionHud=cfg.targetHud=cfg.cps=cfg.toggleSprintHud=false;
-            cfg.hudCorner=0;cfg.hudBgOpacity=100;cfg.hudScale=100;cfg.hudSizes.put("clock",100);scale(c,1);
+            log(verdict(cfg.hudBackgroundColor==0&&cfg.hudBgOpacity==100)+" default HUD fill is opaque black");
+            cfg.hudCorner=0;cfg.hudBackgroundColor=HUD_GEOMETRY_COLOR;cfg.hudScale=100;cfg.hudSizes.put("clock",100);scale(c,1);
         });
         step(15,c->measureHud(c,"GUI1 scale100"));await(c->measuredHud!=null,0);
-        step(0,c->{hudGuiOne=measuredHud.clone();scale(c,3);});
+        step(0,c->{hudGuiOne=measuredHud.clone();ShoreClient.config.hudBackgroundColor=0;hudColorSampled=false;});
+        step(4,c->ScreenshotRecorder.takeScreenshot(c.getFramebuffer(),image->{
+            try(image){
+                boolean found=hudGuiOne[2]>=5&&hudGuiOne[3]>=4;
+                log(verdict(found&&(image.getColorArgb(hudGuiOne[0]+2,hudGuiOne[1]+1)&0xFFFFFF)==0)+" rendered HUD box is pitch black");
+            }finally{hudColorSampled=true;}
+        }));
+        await(c->hudColorSampled,0);
+        step(0,c->{ShoreClient.config.hudBackgroundColor=HUD_GEOMETRY_COLOR;scale(c,3);});
         step(15,c->measureHud(c,"GUI3 scale100"));await(c->measuredHud!=null,0);
         step(0,c->{
             hudGuiThree=measuredHud.clone();log(verdict(hudGuiOne[2]>0&&Math.abs(hudGuiOne[2]-hudGuiThree[2])<=1&&Math.abs(hudGuiOne[3]-hudGuiThree[3])<=1)+" HUD physical boxes ignore Minecraft GUI zoom");
@@ -260,7 +321,8 @@ final class ShoreSelfTest {
         step(0,c->{log(verdict(measuredHud[2]>0&&Math.abs(measuredHud[2]*2-hudGuiThree[2])<=2&&Math.abs(measuredHud[3]*2-hudGuiThree[3])<=2)+" HUD boxes halve at fifty percent");ShoreClient.config.hudScale=100;ShoreClient.config.hudSizes.put("clock",50);});
         step(15,c->measureHud(c,"GUI3 element50"));await(c->measuredHud!=null,0);
         step(0,c->{log(verdict(Math.abs(measuredHud[2]*2-hudGuiThree[2])<=2&&Math.abs(measuredHud[3]*2-hudGuiThree[3])<=2)+" HUD element setting halves its complete box");
-            var users=new java.util.ArrayList<net.shoresmp.core.Wire.User>();for(int i=0;i<8;i++)users.add(new net.shoresmp.core.Wire.User(java.util.UUID.randomUUID(),"Player"+i));
+            ShoreClient.config.hudBackgroundColor=0;
+            var users=new java.util.ArrayList<net.shoresmp.core.Wire.User>();for(int i=0;i<8;i++)users.add(new net.shoresmp.core.Wire.User(java.util.UUID.randomUUID(),"Player"+i)); 
             ShoreClient.config.paymentScale=100;c.setScreen(new PaymentScreen(null,net.shoresmp.core.Payments.each(users,net.shoresmp.core.Payments.amount("5b")),c.getNetworkHandler()));});
         step(10,c->{paymentUnit=paymentUiUnit(c);paymentButtons(c);ShoreClient.config.paymentScale=70;});
         step(10,c->{log(verdict(Math.abs(paymentUiUnit(c)/paymentUnit-0.7f)<0.01f)+" payment dialog geometry shrinks to seventy percent");paymentButtons(c);shot(c,"payment_compact");});
