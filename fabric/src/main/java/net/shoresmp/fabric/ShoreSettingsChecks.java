@@ -1,6 +1,10 @@
 package net.shoresmp.fabric;
 
 import net.minecraft.client.MinecraftClient;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.List;
 
 /** Development-only integration checks, invoked by the compatibility smoke-test property. */
@@ -17,29 +21,81 @@ public final class ShoreSettingsChecks {
         var focus=ShoreScreen.class.getDeclaredField("focused");focus.setAccessible(true);focus.set(screen,input);
         var commit=ShoreScreen.class.getDeclaredMethod("finishInput",boolean.class);commit.setAccessible(true);commit.invoke(screen,true);
     }
+    private static void checkClassicPalette(Config c, String profile) {
+        check(c.panelColor()==0xFE07090C && c.menuSurface==0x090B0E && c.menuEdge==0x23272D
+            && c.menuEnabledColor==0x7CC62F && !c.menuCategoryColors, profile+" settings palette");
+        check(c.hudBackgroundColor==0x101217 && c.hudBgOpacity==85
+            && c.watchBackground==0x101217 && c.watchOpacity==85, profile+" HUD palette");
+        check(c.menuScale==85 && c.menuCardWidth==190 && c.menuShade==45 && c.hudGap==2, profile+" layout");
+    }
+    private static void classicPaletteChecks() throws IOException {
+        var dir=Files.createTempDirectory("shore-settings-check");
+        var path=dir.resolve("shoremod.json");
+        try {
+            checkClassicPalette(Config.load(path),"fresh");
+            var old=new JsonObject();
+            old.addProperty("menuDefaults140",true);
+            old.addProperty("chatDefaultsVersion",2);
+            old.addProperty("menuBackgroundColor",0x07090C);
+            old.addProperty("hudBackgroundColor",0x101217);
+            Files.writeString(path,old.toString());
+            checkClassicPalette(Config.load(path),"1.4.1");
+            old.addProperty("hudBackgroundColor",0);
+            old.addProperty("hudBgOpacity",100);
+            Files.writeString(path,old.toString());
+            var c=Config.load(path);
+            check(c.hudBackgroundColor==0 && c.hudBgOpacity==100,"custom black from 1.4.1 survives");
+
+            for (boolean black : new boolean[]{false,true}) {
+                String release=black?"1.5.1":"1.5.0";
+                String marker=black?"blackBackgrounds151":"menuPalette150";
+                var data=old.deepCopy();
+                data.addProperty(marker,true);
+                data.addProperty("menuBackgroundColor",black?0:0x091C26);
+                data.addProperty("menuSurface",black?0:0x102631);
+                data.addProperty("menuEdge",black?0x323232:0x234653);
+                data.addProperty("menuEnabledColor",0x23847C);
+                data.addProperty("menuCategoryColors",true);
+                data.addProperty("hudBackgroundColor",black?0:0x101217);
+                data.addProperty("hudBgOpacity",black?100:85);
+                data.addProperty("watchBackground",black?0:0x102631);
+                data.addProperty("watchOpacity",black?100:85);
+                data.addProperty("menuFontScale",75);
+                data.addProperty("fovChanger",true);
+                Files.writeString(path,data.toString());
+                c=Config.load(path);
+                checkClassicPalette(c,release);
+                check(c.menuFontScale==75 && c.fovChanger,release+" keeps unrelated preferences");
+                check(!JsonParser.parseString(Files.readString(path)).getAsJsonObject().has(marker),release+" migration saved");
+                c.menuSurface=0;c.menuCategoryColors=true;c.hudBackgroundColor=0;c.hudBgOpacity=100;
+                c.save(path);
+                c=Config.load(path);
+                check(c.menuSurface==0 && c.menuCategoryColors && c.hudBackgroundColor==0 && c.hudBgOpacity==100,
+                    release+" permits reselecting an earlier color after migration");
+
+                data.addProperty("menuBackgroundColor",black?0x334455:0);
+                data.addProperty("panelOpacity",38);
+                data.addProperty("hudBackgroundColor",0xAABBCC);
+                data.addProperty("hudBgOpacity",100);
+                data.addProperty("watchOpacity",44);
+                data.addProperty("menuEdge",0x445566);
+                Files.writeString(path,data.toString());
+                c=Config.load(path);
+                check(c.menuBackgroundColor==(black?0x334455:0) && c.panelOpacity==38 && c.menuEdge==0x445566
+                    && c.hudBackgroundColor==0xAABBCC && c.hudBgOpacity==100 && c.watchOpacity==44,
+                    release+" preserves custom colors and independent opacity");
+            }
+        } finally {
+            Files.deleteIfExists(path.resolveSibling("shoremod.json.tmp"));
+            Files.deleteIfExists(path);
+            Files.deleteIfExists(dir);
+        }
+    }
     public static void run(){
         Config c=ShoreClient.config;
         boolean enabled=c.fullbright;int strength=c.fullbrightStrength,size=c.hudSize("fps"),color=c.crosshairCustomColor,mode=c.crosshairColor;
         try{
-            Config legacy = new com.google.gson.Gson().fromJson("""
-                {"menuDefaults140":true,"menuPalette150":true,"panelOpacity":100,"menuBackgroundColor":597030,
-                 "menuSurface":1058353,"hudBackgroundColor":1053207,"hudBgOpacity":85,
-                 "watchBackground":1058353,"watchOpacity":85}
-                """,Config.class);
-            legacy.applyBlackBackgroundDefaults();
-            check(legacy.panelColor()==0xFF000000 && legacy.menuSurface==0
-                && legacy.hudBackgroundColor==0 && legacy.hudBgOpacity==100
-                && legacy.watchBackground==0 && legacy.watchOpacity==100,
-                "previous default menu and HUD fills migrate to opaque black");
-            legacy.menuSurface=0x102631;
-            legacy.applyBlackBackgroundDefaults();
-            check(legacy.menuSurface==0x102631,"reselecting the former color after migration is respected");
-            Config custom=new Config();
-            custom.menuBackgroundColor=0x334455;custom.panelOpacity=38;custom.hudBackgroundColor=0xAABBCC;
-            custom.hudBgOpacity=85;custom.watchBackground=0x102631;custom.watchOpacity=44;
-            custom.applyBlackBackgroundDefaults();
-            check(custom.panelColor()==0x61334455 && custom.hudBackgroundColor==0xAABBCC
-                && custom.hudBgOpacity==85 && custom.watchOpacity==44,"custom colors and opacity survive migration");
+            classicPaletteChecks();
             c.fullbright=false;double vanilla=MinecraftClient.getInstance().options.getGamma().getValue();
             var screen=new ShoreScreen(null);screen.showModule("fullbright");
             var numeric=row(screen,"Brightness boost").input;

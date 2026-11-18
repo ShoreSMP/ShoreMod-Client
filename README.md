@@ -2,7 +2,7 @@
 
 Fabric client mod for Minecraft **1.21.5, 1.21.8, 1.21.10, 1.21.11, 26.1, 26.2, and 26.3**.
 
-[Download ShoreMod 1.5.1](https://github.com/ShoreSMP/ShoreMod-Client/releases/download/v1.5.1/ShoreMod-1.5.1.jar) | [All releases](https://github.com/ShoreSMP/ShoreMod-Client/releases)
+[Download ShoreMod 1.5.2](https://github.com/ShoreSMP/ShoreMod-Client/releases/download/v1.5.2/ShoreMod-1.5.2.jar) | [All releases](https://github.com/ShoreSMP/ShoreMod-Client/releases)
 
 ## Install
 
@@ -13,7 +13,7 @@ Install Fabric and the Fabric API matching your Minecraft version. Put the JAR i
 | Listed 1.21.x versions | 0.19.2+ | 21 |
 | 26.1, 26.2, 26.3 | 0.20.1+ | 25 |
 
-Open settings with **Right Shift** or **/shore**. HUD and menu backgrounds default to opaque black. You can adjust them in General settings.
+Open settings with **Right Shift** or **/shore**. The HUD and settings menu use the 1.4.1 appearance, including charcoal HUD boxes at 85% opacity. You can adjust them in General settings.
 
 ## Features
 

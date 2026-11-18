@@ -25,17 +25,26 @@ import java.util.function.*;
  */
 public final class ShoreScreen extends Screen {
     // ------------------------------------------------------------------ palette
-    private static final int TEXT=0xFFF0F8FC, MUTED=0xFFA6C0CD, FAINT=0xFF7E99A6, HEART=0xFFFF789A;
+    private static final int TEXT=0xFFF4F5F7, MUTED=0xFF9BA1AA, FAINT=0xFF60666F, HEART=0xFFFF5C7A;
     private int TOP, TOP_HOVER, CARD, CARD_HOVER, EDGE, EDGE_HOVER, CHIP, CHIP_HOVER, BTN, BTN_HOVER;
     private int ON, ON_HOVER, OFF, OFF_HOVER, ROW_HOVER, INPUT, INPUT_EDGE, DIVIDER, TRACK;
     private void updatePalette(Config c) {
         int surface=0xFF000000|c.menuSurface, edge=0xFF000000|c.menuEdge, enabled=0xFF000000|c.menuEnabledColor;
         if(CARD==surface && EDGE==edge && ON==enabled)return;
         CARD=surface; EDGE=edge; ON=enabled;
+        ON_HOVER=ON==0xFF7CC62F?0xFF8BD33E:ShoreUi.mix(ON,TEXT,0.16f);
+        if(CARD==0xFF090B0E && EDGE==0xFF23272D){
+            TOP=0xEB121417; TOP_HOVER=0xF51C1F24;
+            CARD_HOVER=0xFF11151B; EDGE_HOVER=0xFF343941;
+            CHIP=0xFF1C1F24; CHIP_HOVER=0xFF262A30; BTN=0xFF1E2227; BTN_HOVER=0xFF2A2F35;
+            OFF=0xFF1E2227; OFF_HOVER=0xFF272B31; ROW_HOVER=0xFF1B1E23;
+            INPUT=0xFF0B0D0F; INPUT_EDGE=0xFF2A2E34; DIVIDER=0xFF1E2126; TRACK=0xFF353A41;
+            return;
+        }
         CARD_HOVER=ShoreUi.mix(CARD,EDGE,0.32f); EDGE_HOVER=ShoreUi.mix(EDGE,TEXT,0.24f);
         TOP=CARD; TOP_HOVER=CARD_HOVER;
         CHIP=ShoreUi.mix(CARD,EDGE,0.48f); CHIP_HOVER=EDGE;
-        BTN=CHIP; BTN_HOVER=EDGE; ON_HOVER=ShoreUi.mix(ON,TEXT,0.16f); OFF=CHIP; OFF_HOVER=EDGE;
+        BTN=CHIP; BTN_HOVER=EDGE; OFF=CHIP; OFF_HOVER=EDGE;
         ROW_HOVER=CARD_HOVER; INPUT=ShoreUi.mix(CARD,0xFF000000,0.32f); INPUT_EDGE=EDGE;
         DIVIDER=ShoreUi.mix(CARD,EDGE,0.65f); TRACK=ShoreUi.mix(EDGE,TEXT,0.16f);
     }
@@ -913,19 +922,19 @@ public final class ShoreScreen extends Screen {
         if(hov)tooltip="Favorites only";
         drawInput(search,searchX,cy,searchW,ch,"search");
         // chips
-        float x=ix,chipY=cy,rowEnd=searchX-12;
+        float x=ix;
         for(String cat:CATEGORIES){
             float w=Math.max(44,ui.width(cat,sel0(cat),13)+24);
-            if(x+w>rowEnd){x=ix;chipY+=ch+7;rowEnd=ix+iw;}
+            if(x+w>searchX-12)break;
             boolean sel=category.equals(cat);
-            boolean h=hit(x,chipY,w,ch,()->{category=cat;scroll=scrollTarget=0;});
-            ui.round(x,chipY,w,ch,8,sel?(h?ShoreUi.mix(accent,0xFFFFFFFF,0.12f):accent):h?CHIP_HOVER:CHIP);
-            ui.centered(cat,sel,13,x+w/2,chipY+(ch-13)/2,sel?onAccent():h?TEXT:MUTED,w-10);
+            boolean h=hit(x,cy,w,ch,()->{category=cat;scroll=scrollTarget=0;});
+            ui.round(x,cy,w,ch,8,sel?(h?ShoreUi.mix(accent,0xFFFFFFFF,0.12f):accent):h?CHIP_HOVER:CHIP);
+            ui.centered(cat,sel,13,x+w/2,cy+(ch-13)/2,sel?onAccent():h?TEXT:MUTED,w-10);
             x+=w+7;
         }
 
         // cards
-        float top=chipY+ch+16,viewH=py+ph-10-top,gap=14;
+        float top=cy+ch+16,viewH=py+ph-10-top,gap=14;
         int cols=Math.max(2,(int)((iw+gap)/(ShoreClient.config.menuCardWidth+gap)));
         float cardW=(iw-8-gap*(cols-1))/cols,cardH=Math.clamp(cardW*0.8f,150,220);
         List<Module> list=visibleModules();
@@ -966,8 +975,12 @@ public final class ShoreScreen extends Screen {
         ui.icon(fav?"heart_filled":"heart",hx+(hs-14)/2,hy+(hs-14)/2+0.5f,14,fav?HEART:heartHover?TEXT:MUTED);
         // icon
         float by=y+h-pad-34,area=by-(y+46),is=Math.min(52,area*0.72f);
-        int iconColor=ShoreClient.config.menuCategoryColors?categoryColor(m.category()):TEXT;
-        ui.icon(m.icon(),x+(w-is)/2,y+46+(area-is)/2,is,on?iconColor:ShoreUi.mix(CARD,iconColor,0.62f));
+        int iconColor=on?0xFFFFFFFF:0xFF5D636B;
+        if(ShoreClient.config.menuCategoryColors){
+            int color=categoryColor(m.category());
+            iconColor=on?color:ShoreUi.mix(CARD,color,0.62f);
+        }
+        ui.icon(m.icon(),x+(w-is)/2,y+46+(area-is)/2,is,iconColor);
         // settings + toggle
         float gs=34;
         boolean gearHover=hit(x+pad,by,gs,gs,()->openModule(m));
@@ -980,7 +993,8 @@ public final class ShoreScreen extends Screen {
     }
     private void toggleButton(float x,float y,float w,float h,boolean on,boolean hover){
         ui.round(x,y,w,h,8,on?(hover?ON_HOVER:ON):(hover?OFF_HOVER:OFF));
-        ui.centered(on?"Enabled":"Disabled",true,13.5f,x+w/2,y+(h-13.5f)/2,on?(light(ON)?0xFF081923:0xFFFFFFFF):MUTED,w-10);
+        int label=ON!=0xFF7CC62F && light(ON)?0xFF081923:0xFFFFFFFF;
+        ui.centered(on?"Enabled":"Disabled",true,13.5f,x+w/2,y+(h-13.5f)/2,on?label:MUTED,w-10);
     }
     private void scrollbar(float x,float top,float viewH,float contentH){
         if(maxScroll<=0)return;

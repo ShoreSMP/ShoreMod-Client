@@ -136,6 +136,9 @@ final class ShoreSelfTest {
     }
     private static volatile int[] measuredHud;
     private static final int HUD_GEOMETRY_COLOR=0xC13579;
+    private static final int HUD_REFERENCE_FILL=0xD9101217;
+    private static int hudTestBackdrop;
+    private static boolean hudColorsMatch;
     private static volatile boolean hudColorSampled;
     private static int[] hudGuiOne,hudGuiThree;
     private static float paymentUnit;
@@ -244,6 +247,13 @@ final class ShoreSelfTest {
         step(2,c->log(verdict(received.size()==4)+" local games do not send duplicate server commands"));
     }
     private static void planHud(){
+        net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry.attachElementBefore(
+            net.minecraft.util.Identifier.of("shoremod","hud"),net.minecraft.util.Identifier.of("shoremod","hud_reference"),(ctx,tick)->{
+                if(hudTestBackdrop==0)return;
+                int w=ctx.getScaledWindowWidth(),h=ctx.getScaledWindowHeight();
+                ctx.fill(0,0,w,h,hudTestBackdrop);
+                ctx.fill(w/2,0,w,h,HUD_REFERENCE_FILL);
+            });
         enterWorld();
         planCommandRouting();
         float[] noonAngle = new float[1];
@@ -282,19 +292,31 @@ final class ShoreSelfTest {
         step(2,c->{
             var cfg=ShoreClient.config;cfg.hudClock=true;cfg.hudFps=cfg.hudPing=cfg.hudCoords=cfg.hudBiome=cfg.hudArmor=false;
             cfg.keystrokes=cfg.itemCounter=cfg.potionHud=cfg.targetHud=cfg.cps=cfg.toggleSprintHud=false;
-            log(verdict(cfg.hudBackgroundColor==0&&cfg.hudBgOpacity==100)+" default HUD fill is opaque black");
-            cfg.hudCorner=0;cfg.hudBackgroundColor=HUD_GEOMETRY_COLOR;cfg.hudScale=100;cfg.hudSizes.put("clock",100);scale(c,1);
+            log(verdict(cfg.hudBackgroundColor==0x101217&&cfg.hudBgOpacity==85)+" default HUD fill matches 1.4.1");
+            cfg.hudCorner=0;cfg.hudBackgroundColor=HUD_GEOMETRY_COLOR;cfg.hudBgOpacity=100;cfg.hudScale=100;cfg.hudSizes.put("clock",100);scale(c,1);
         });
         step(15,c->measureHud(c,"GUI1 scale100"));await(c->measuredHud!=null,0);
-        step(0,c->{hudGuiOne=measuredHud.clone();ShoreClient.config.hudBackgroundColor=0;hudColorSampled=false;});
-        step(4,c->ScreenshotRecorder.takeScreenshot(c.getFramebuffer(),image->{
-            try(image){
-                boolean found=hudGuiOne[2]>=5&&hudGuiOne[3]>=4;
-                log(verdict(found&&(image.getColorArgb(hudGuiOne[0]+2,hudGuiOne[1]+1)&0xFFFFFF)==0)+" rendered HUD box is pitch black");
-            }finally{hudColorSampled=true;}
-        }));
-        await(c->hudColorSampled,0);
-        step(0,c->{ShoreClient.config.hudBackgroundColor=HUD_GEOMETRY_COLOR;scale(c,3);});
+        step(0,c->{hudGuiOne=measuredHud.clone();var defaults=new Config();ShoreClient.config.hudBackgroundColor=defaults.hudBackgroundColor;ShoreClient.config.hudBgOpacity=defaults.hudBgOpacity;hudColorsMatch=true;});
+        for(int backdrop:new int[]{0xFF5072C8,0xFFFFD760}){
+            step(0,c->{hudTestBackdrop=backdrop;hudColorSampled=false;});
+            step(4,c->ScreenshotRecorder.takeScreenshot(c.getFramebuffer(),image->{
+                try(image){
+                    boolean found=hudGuiOne[2]>=5&&hudGuiOne[3]>=4;
+                    if(found){
+                        int y=hudGuiOne[1]+1;
+                        int reference=image.getColorArgb(image.getWidth()*3/4,y)&0xFFFFFF;
+                        int bare=image.getColorArgb(image.getWidth()/3,y)&0xFFFFFF;
+                        int actual=image.getColorArgb(hudGuiOne[0]+2,y)&0xFFFFFF;
+                        hudColorsMatch &= actual==reference && reference!=bare;
+                    }else hudColorsMatch=false;
+                }finally{hudColorSampled=true;}
+            }));
+            await(c->hudColorSampled,0);
+        }
+        step(0,c->{
+            log(verdict(hudColorsMatch)+" rendered HUD box uses the 1.4.1 fill and opacity");
+            hudTestBackdrop=0;ShoreClient.config.hudBackgroundColor=HUD_GEOMETRY_COLOR;ShoreClient.config.hudBgOpacity=100;scale(c,3);
+        });
         step(15,c->measureHud(c,"GUI3 scale100"));await(c->measuredHud!=null,0);
         step(0,c->{
             hudGuiThree=measuredHud.clone();log(verdict(hudGuiOne[2]>0&&Math.abs(hudGuiOne[2]-hudGuiThree[2])<=1&&Math.abs(hudGuiOne[3]-hudGuiThree[3])<=1)+" HUD physical boxes ignore Minecraft GUI zoom");
@@ -321,7 +343,7 @@ final class ShoreSelfTest {
         step(0,c->{log(verdict(measuredHud[2]>0&&Math.abs(measuredHud[2]*2-hudGuiThree[2])<=2&&Math.abs(measuredHud[3]*2-hudGuiThree[3])<=2)+" HUD boxes halve at fifty percent");ShoreClient.config.hudScale=100;ShoreClient.config.hudSizes.put("clock",50);});
         step(15,c->measureHud(c,"GUI3 element50"));await(c->measuredHud!=null,0);
         step(0,c->{log(verdict(Math.abs(measuredHud[2]*2-hudGuiThree[2])<=2&&Math.abs(measuredHud[3]*2-hudGuiThree[3])<=2)+" HUD element setting halves its complete box");
-            ShoreClient.config.hudBackgroundColor=0;
+            var defaults=new Config();ShoreClient.config.hudBackgroundColor=defaults.hudBackgroundColor;ShoreClient.config.hudBgOpacity=defaults.hudBgOpacity;
             var users=new java.util.ArrayList<net.shoresmp.core.Wire.User>();for(int i=0;i<8;i++)users.add(new net.shoresmp.core.Wire.User(java.util.UUID.randomUUID(),"Player"+i)); 
             ShoreClient.config.paymentScale=100;c.setScreen(new PaymentScreen(null,net.shoresmp.core.Payments.each(users,net.shoresmp.core.Payments.amount("5b")),c.getNetworkHandler()));});
         step(10,c->{paymentUnit=paymentUiUnit(c);paymentButtons(c);ShoreClient.config.paymentScale=70;});
@@ -418,6 +440,22 @@ final class ShoreSelfTest {
             log(verdict(tinted==0x66FFFFFF)+" inventory texture alpha follows configured opacity");shot(c,"transparent_inventory");
         });
         step(2,c->{c.setScreen(null);log(verdict(ShoreVisuals.guiTint(0xFFFFFFFF)==0xFFFFFFFF)+" GUI tint leaves world textures unchanged");c.setScreen(new ShoreScreen(null));});
+        step(2,c->((ShoreScreen)c.currentScreen).showGrid("All",""));
+        var menuSampled=new java.util.concurrent.atomic.AtomicBoolean();
+        step(8,c->ScreenshotRecorder.takeScreenshot(c.getFramebuffer(),image->{
+            try(image){
+                int cards=0,edges=0,buttons=0;
+                for(int y=0;y<image.getHeight();y++)for(int x=0;x<image.getWidth();x++){
+                    switch(image.getColorArgb(x,y)&0xFFFFFF){
+                        case 0x090B0E -> cards++;
+                        case 0x23272D -> edges++;
+                        case 0x1E2227 -> buttons++;
+                    }
+                }
+                log(verdict(cards>500&&edges>30&&buttons>30)+" settings grid renders the 1.4.1 card, border and button colors");
+            }finally{menuSampled.set(true);}
+        }));
+        await(c->menuSampled.get(),0);
         for(String module:new String[]{"performance","blockoverlay","betterf3","guitweaks","hitboxes","totemtweaks","waypoints","chat"}){
             step(2,c->((ShoreScreen)c.currentScreen).showModule(module));step(6,c->shot(c,"settings_"+module));
         }

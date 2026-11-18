@@ -19,7 +19,7 @@ def verify(target):
  with zipfile.ZipFile(io.BytesIO(data)) as jar:
   meta=json.loads(jar.read('fabric.mod.json'))
   assert meta['depends']['minecraft']==target and meta['custom']['shoremod:build-target']==target
-  assert meta['depends']['java']==f'>={java}' and meta['version']=='1.5.1'
+  assert meta['depends']['java']==f'>={java}' and meta['version']=='1.5.2'
   classes=[n for n in jar.namelist() if n.startswith('net/shoresmp/fabric/') and n.endswith('.class')]
   assert len(classes)>25 and all(struct.unpack('>H',jar.read(n)[6:8])[0]<=java+44 for n in classes)
   assert meta['icon'] in jar.namelist() and 'net/shoresmp/fabric/mixin/BrightnessMixin.class' in jar.namelist()

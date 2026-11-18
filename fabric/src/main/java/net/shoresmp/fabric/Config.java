@@ -76,7 +76,7 @@ public final class Config {
     public boolean hitboxEyes=false, hitboxLook=false, hitboxTargetColor=true, hitboxDistanceFade=false;
     public boolean hitboxLoadedRange=true;
     public int hitboxTargetRgb=0xFF5555;
-    public int guiTintColor=0xFFFFFF, menuBackgroundColor=0x000000, hudBackgroundColor=0x000000, hudBorderColor=0x50A7FF;
+    public int guiTintColor=0xFFFFFF, menuBackgroundColor=0x07090C, hudBackgroundColor=0x101217, hudBorderColor=0x50A7FF;
     public boolean hudBorder=false,menuTwoColumns=false,menuDefaults140=false;
     public int hudPadding=5, hudGap=2, hudMargin=4, menuShade=45;
     public boolean waypointDistances=true, waypointCoordinatesShown=false, waypointBackground=true, waypointOffscreen=true;
@@ -92,11 +92,11 @@ public final class Config {
     // Mod menu
     public boolean zoomEnabled = true, extendedChat = true;
     public boolean tweakRmb = true, tweakLmb = true, tweakShift = true, tweakWheel = true;
-    public boolean blackBackgrounds151, menuImage, menuCategoryColors=true;
-    public int menuSurface=0x000000, menuEdge=0x323232, menuEnabledColor=0x23847C;
+    public boolean menuImage, menuCategoryColors;
+    public int menuSurface=0x090B0E, menuEdge=0x23272D, menuEnabledColor=0x7CC62F;
     public int menuImageOpacity=75, menuImageTint=0xFFFFFF, menuImageFit=0, menuCardWidth=190, menuScrollStep=48;
     public boolean stopwatch, watchMillis, watchBorder, watchShadow=true, watchAutoWidth=true;
-    public int watchStyle=0, watchWidth=64, watchHeight=18, watchBackground=0x000000, watchOpacity=100, watchText=0xFFFFFF, watchEdge=0x50A7FF;
+    public int watchStyle=0, watchWidth=64, watchHeight=18, watchBackground=0x101217, watchOpacity=85, watchText=0xFFFFFF, watchEdge=0x50A7FF;
     public boolean clockTwelveHour, clockSeconds, coordsFacing=true, coordsAxis=true;
     public int armorReadout, armorLowColor=0xFF5555, armorMidColor=0xFFFF55;
     public int crosshairOutlineColor=0x000000, crosshairOutlineOpacity=75;
@@ -111,7 +111,7 @@ public final class Config {
     // More options
     public boolean shulkerColorBorder = true, hudShadow = true, timestamps24 = true, timestampSeconds = false;
     public boolean durabilitySound = true, durabilityChat = false, deathAnnounce = true;
-    public int shulkerMode = 0, hudBgOpacity = 100, hudTextColor = 0, stackStyle = 0;
+    public int shulkerMode = 0, hudBgOpacity = 85, hudTextColor = 0, stackStyle = 0;
     public int stackLookback = 8, mentionColor = 0;
     // PvP
     public boolean targetHud = false, potionHud = false, keystrokes = false, itemCounter = false;
@@ -131,27 +131,31 @@ public final class Config {
     /** Module id -> key translation key (e.g. "key.keyboard.h") that toggles it in game. */
     public Map<String,String> moduleKeys = new HashMap<>();
     public static Config load() {
+        return load(PATH);
+    }
+    static Config load(Path path) {
         try {
-            if (Files.exists(PATH)) {
-                JsonObject data=JsonParser.parseString(Files.readString(PATH)).getAsJsonObject();
+            if (Files.exists(path)) {
+                JsonObject data=JsonParser.parseString(Files.readString(path)).getAsJsonObject();
                 Config result = GSON.fromJson(data, Config.class);
                 if (result != null) {
+                    boolean changed = result.restoreClassicPalette(data);
                     if(!data.has("chatDefaultsVersion")) {
                         // Apply the new plain-chat default once to pre-existing installations.
                         result.timestamps=false; result.mentionHighlight=false; result.filterDuplicates=true;
-                        result.chatDefaultsVersion=1; result.save();
+                        result.chatDefaultsVersion=1;
                     }
                     if(result.chatDefaultsVersion<2) {
                         // Mentions now highlight the whole line; switch them on for existing installs once.
-                        result.mentionHighlight=true; result.chatDefaultsVersion=2; result.save();
+                        result.mentionHighlight=true; result.chatDefaultsVersion=2; changed=true;
                     }
-                    if (!result.blackBackgrounds151) result.save();
+                    if (changed) result.save(path);
                     else result.validate();
                     return result;
                 }
             }
         } catch (IOException | RuntimeException e) { ShoreClient.LOG.warn("Could not read ShoreMod config; using defaults", e); }
-        Config result = new Config(); result.save(); return result;
+        Config result = new Config(); result.save(path); return result;
     }
     private void validate() {
         if (debugFields == null) debugFields = new HashMap<>();
@@ -195,7 +199,6 @@ public final class Config {
 
         if(!blueDefaultApplied){if(accent==0x35DBD2)accent=0x50A7FF;blueDefaultApplied=true;}
         if(!darkHudDefaultApplied){if(hudBgOpacity==50)hudBgOpacity=85;darkHudDefaultApplied=true;}
-        applyBlackBackgroundDefaults();
         if(!compactGuiDefaultApplied){if(menuScale==100)menuScale=85;compactGuiDefaultApplied=true;}
         if(!performanceDefaultsApplied){recording=false;lowOverhead=true;performanceDefaultsApplied=true;}
         chatHeadSize=Math.clamp(chatHeadSize,4,8);
@@ -263,30 +266,36 @@ public final class Config {
         accent &= 0xFFFFFF;
     }
     public void save() {
+        save(PATH);
+    }
+    void save(Path path) {
         validate();
         try {
-            Files.createDirectories(PATH.getParent());
-            Path temp = PATH.resolveSibling("shoremod.json.tmp");
+            Files.createDirectories(path.getParent());
+            Path temp = path.resolveSibling(path.getFileName()+".tmp");
             Files.writeString(temp, GSON.toJson(this));
-            Files.move(temp, PATH, StandardCopyOption.REPLACE_EXISTING);
+            Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) { ShoreClient.LOG.error("Could not save ShoreMod settings", e); }
     }
-    void applyBlackBackgroundDefaults() {
-        if (blackBackgrounds151) return;
-        if (menuBackgroundColor == 0x091C26 || menuBackgroundColor == 0x07090C || menuBackgroundColor == 0x0D0F12)
-            menuBackgroundColor = 0;
-        if (menuSurface == 0x102631) menuSurface = 0;
-        if (menuEdge == 0x234653) menuEdge = 0x323232;
-        if (hudBackgroundColor == 0x101217) {
-            hudBackgroundColor = 0;
-            if (hudBgOpacity == 85) hudBgOpacity = 100;
+    /** The obsolete palette keys identify the source release and disappear on the next save. */
+    private boolean restoreClassicPalette(JsonObject data) {
+        boolean black = data.has("blackBackgrounds151");
+        if (!black && !data.has("menuPalette150")) return false;
+        if (menuBackgroundColor == (black ? 0 : 0x091C26)) menuBackgroundColor = 0x07090C;
+        if (menuSurface == (black ? 0 : 0x102631)) menuSurface = 0x090B0E;
+        if (menuEdge == (black ? 0x323232 : 0x234653)) menuEdge = 0x23272D;
+        if (menuEnabledColor == 0x23847C) menuEnabledColor = 0x7CC62F;
+        menuCategoryColors = false;
+        if (black && hudBackgroundColor == 0) {
+            hudBackgroundColor = 0x101217;
+            if (hudBgOpacity == 100) hudBgOpacity = 85;
         }
-        if (watchBackground == 0x102631) {
-            watchBackground = 0;
-            if (watchOpacity == 85) watchOpacity = 100;
+        if (watchBackground == (black ? 0 : 0x102631)) {
+            watchBackground = 0x101217;
+            if (black && watchOpacity == 100) watchOpacity = 85;
         }
-        blackBackgrounds151 = true;
+        return true;
     }
-    public int panelColor() { return (Math.round(panelOpacity * 255 / 100f) << 24) | menuBackgroundColor; }
+    public int panelColor() { return ((int)(panelOpacity * 2.55) << 24) | menuBackgroundColor; }
 }
 
